@@ -14,11 +14,42 @@ L<Mad::Mapper> is a object to database adapter.
 
 =head1 SYNOPSIS
 
+=head2 Simple
+
   package User;
   use Mad::Mapper -base;
 
   has email => '';
   has id => undef;
+  has name => '';
+
+  sub _from { 'users' }
+  sub _columns { [ qw( email name id ) ] }
+  sub _unique { [ qw( id email ) ] }
+
+=head2 Complex
+
+  package User;
+  use Mad::Mapper -base;
+
+  has email => '';
+  has id => undef;
+
+  sub _find {
+    my ($self, $cb) = @_;
+
+    Mojo::IOLoop->delay(
+      sub {
+        my ($delay) = @_;
+        $self->db->query('SEARCH FROM users WHERE email = ?', $self->email, $delay->begin);
+      },
+      sub {
+        my ($delay, $err, $res) = @_;
+        return $self->$cb($err) if $err;
+        $self->in_storage(1) unless $err;
+      },
+    );
+  }
 
   sub _delete {
     my ($self, $cb) = @_;
