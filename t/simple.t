@@ -15,6 +15,7 @@ ok !$user->in_storage, 'not in_storage';
 
 $user->email('test@example.com');
 is $user->save, $user, 'save() returned $self';
+is $pg->db->query('SELECT COUNT(*) AS n FROM simple_users')->hash->{n}, 1, 'one row in database';
 ok $user->in_storage, 'user is in_storage';
 
 $user->email('foo@example.com');
@@ -27,15 +28,18 @@ $user->save(
 $err = 'not saved';
 Mojo::IOLoop->start;
 ok !$err, 'save() updated' or diag $err;
-
-is $user->delete, $user, 'delete() return $self';
-ok !$user->in_storage, 'not in_storage';
+is $pg->db->query('SELECT COUNT(*) AS n FROM simple_users')->hash->{n}, 1, 'one row in database';
 
 $user = t::User->new_from_storage(db => $pg->db, email => 'test@example.com');
 ok !$user->in_storage, 'could not find user in storage';
+ok !$user->id,         'no id';
 
 $user = t::User->new_from_storage(db => $pg->db, email => 'foo@example.com');
 ok $user->in_storage, 'found user in storage';
+ok $user->id,         'got id';
+
+is $user->delete, $user, 'delete() return $self';
+ok !$user->in_storage, 'not in_storage';
 
 $pg->db->do('DROP TABLE simple_users');
 

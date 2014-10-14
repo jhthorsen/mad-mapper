@@ -120,6 +120,32 @@ sub delete {
   return $self;
 }
 
+=head2 new_from_storage
+
+  $self = $class->new_from_storage(@_);
+  $self = $class->new_from_storage(@_, sub { my ($self, $err) = @_; });
+
+Same as C<new()>, but tries to look up additional attributes from database.
+
+=cut
+
+sub new_from_storage {
+  my $cb    = ref $_[-1] eq 'CODE' ? pop : undef;
+  my $class = shift;
+  my $self  = $class->new(@_);
+
+  if ($cb) {
+    $self->_find($cb);
+    return $self;
+  }
+
+  my $err;
+  $self->_find(sub { (my $self, $err) = @_; Mojo::IOLoop->stop; });
+  Mojo::IOLoop->start;
+  die $err if $err;
+  return $self;
+}
+
 =head2 save
 
   $self = $self->save;
@@ -197,8 +223,10 @@ sub _find {
     $self->_find_sst,
     sub {
       my ($db, $err, $res) = @_;
-      $self->in_storage(1) unless $_[1];
-      $self->$cb(@_);
+      $res = $res->hash if $res;
+      $self->in_storage(1) if $res and !$err;
+      $self->{$_} = $res->{$_} for keys %$res;
+      $self->$cb($err);
     }
   );
 }
