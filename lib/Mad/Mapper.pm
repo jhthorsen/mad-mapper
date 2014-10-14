@@ -16,6 +16,9 @@ of the database.
 
 =head1 SYNOPSIS
 
+The synopsis is split into three parts: The two first is for developers and the
+last is for end user.
+
 =head2 Simple
 
   package MyApp::Model::User;
@@ -65,6 +68,45 @@ the simple C<_insert()> method above can be done complex:
       },
     );
   }
+
+=head2 End user
+
+  use experimental 'signatures';
+  use Mojolicious::Lite;
+  use MyApp::Model::User;
+
+  get '/profile' => sub ($c) {
+    my $user = MyApp::Model::User->new(id => $c->session('uid'));
+
+    $c->delay(
+      sub {
+        my ($delay) = @_;
+        $user->refresh($delay->begin);
+      },
+      sub {
+        my ($delay, $err) = @_;
+        return $self->render_exception($err) if $err;
+        return $self->render(user => $user);
+      },
+    );
+  };
+
+  post '/profile' => sub ($c) {
+    my $user = MyApp::Model::User->new(id => $c->session('uid'));
+
+    $c->delay(
+      sub {
+        my ($delay) = @_;
+        $user->email($self->param('email'));
+        $user->save($delay->begin);
+      },
+      sub {
+        my ($delay, $err) = @_;
+        return $self->render_exception($err) if $err;
+        return $self->render(user => $user);
+      },
+    );
+  };
 
 =cut
 
@@ -120,29 +162,29 @@ sub delete {
   return $self;
 }
 
-=head2 new_from_storage
+=head2 refresh
 
-  $self = $class->new_from_storage(@_);
-  $self = $class->new_from_storage(@_, sub { my ($self, $err) = @_; });
+  $self = $self->refresh;
+  $self = $class->refresh(sub { my ($self, $err) = @_; });
 
-Same as C<new()>, but tries to look up additional attributes from database.
+Used to fetch data from storage and update the object attributes.
 
 =cut
 
-sub new_from_storage {
-  my $cb    = ref $_[-1] eq 'CODE' ? pop : undef;
-  my $class = shift;
-  my $self  = $class->new(@_);
+sub refresh {
+  my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
+  my $self = shift;
 
   if ($cb) {
     $self->_find($cb);
-    return $self;
+  }
+  else {
+    my $err;
+    $self->_find(sub { (my $self, $err) = @_; Mojo::IOLoop->stop; });
+    Mojo::IOLoop->start;
+    die $err if $err;
   }
 
-  my $err;
-  $self->_find(sub { (my $self, $err) = @_; Mojo::IOLoop->stop; });
-  Mojo::IOLoop->start;
-  die $err if $err;
   return $self;
 }
 

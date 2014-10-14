@@ -30,11 +30,11 @@ Mojo::IOLoop->start;
 ok !$err, 'save() updated' or diag $err;
 is $pg->db->query('SELECT COUNT(*) AS n FROM simple_users')->hash->{n}, 1, 'one row in database';
 
-$user = t::User->new_from_storage(db => $pg->db, email => 'test@example.com');
+$user = t::User->new(db => $pg->db, email => 'test@example.com')->refresh;
 ok !$user->in_storage, 'could not find user in storage';
 ok !$user->id,         'no id';
 
-$user = t::User->new_from_storage(db => $pg->db, email => 'foo@example.com');
+$user = t::User->new(db => $pg->db, email => 'foo@example.com')->refresh;
 ok $user->in_storage, 'found user in storage';
 ok $user->id,         'got id';
 
