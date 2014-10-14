@@ -34,10 +34,10 @@ of the database.
   }
 
   # Define methods to find, delete, insert or update the object in storage
-  sub _find   { 'SELECT id, email FROM users WHERE email = ?', $_[0]->email }
-  sub _delete { 'DELETE FROM users WHERE id = ?', $_[0]->id }
-  sub _insert { 'INSERT INTO users ("email") VALUES(?)', $_[0]->email }
-  sub _update { 'UPDATE users SET email = ? WHERE id = ?', $_[0]->email, $_[0]->id }
+  sub _find_sst   { 'SELECT id, email FROM users WHERE email = ?', $_[0]->email }
+  sub _delete_sst { 'DELETE FROM users WHERE id = ?', $_[0]->id }
+  sub _insert_sst { 'INSERT INTO users ("email") VALUES(?)', $_[0]->email }
+  sub _update_sst { 'UPDATE users SET email = ? WHERE id = ?', $_[0]->email, $_[0]->id }
 
 =head2 Complex
 
@@ -66,12 +66,11 @@ the simple C<_insert()> method above can be done complex:
     );
   }
 
-Note! The trick is to return an object, instead of a list.
-
 =cut
 
 use Mojo::Base -base;
 use Mojo::IOLoop;
+use Scalar::Util qw( blessed weaken );
 
 our $VERSION = '0.01';
 
@@ -116,9 +115,9 @@ sub delete {
   my $err;
   $cb = sub { (my $self, $err) = @_; Mojo::IOLoop->stop; };
   $self->_delete($cb) if $self->in_storage;
+  Mojo::IOLoop->start;
   die $err if $err;
   return $self;
-
 }
 
 =head2 save
@@ -141,6 +140,7 @@ sub save {
   my $err;
   $cb = sub { (my $self, $err) = @_; Mojo::IOLoop->stop; };
   $self->in_storage ? $self->_update($cb) : $self->_insert($cb);
+  Mojo::IOLoop->start;
   die $err if $err;
   return $self;
 }
@@ -173,6 +173,55 @@ sub import {
 
   $_->import for qw(strict warnings utf8);
   feature->import(':5.10');
+}
+
+sub _delete {
+  my ($self, $cb) = @_;
+
+  weaken $self;
+  $self->db->query(
+    $self->_delete_sst,
+    sub {
+      my ($db, $err, $res) = @_;
+      $self->in_storage(0) unless $err;
+      $self->$cb($err);
+    }
+  );
+}
+
+sub _find {
+  my ($self, $cb) = @_;
+
+  weaken $self;
+  $self->db->query(
+    $self->_find_sst,
+    sub {
+      my ($db, $err, $res) = @_;
+      $self->in_storage(1) unless $_[1];
+      $self->$cb(@_);
+    }
+  );
+}
+
+sub _insert {
+  my ($self, $cb) = @_;
+
+  weaken $self;
+  $self->db->query(
+    $self->_insert_sst,
+    sub {
+      my ($db, $err, $res) = @_;
+      $self->in_storage(1) unless $err;
+      $res = $res->hash;
+      $self->id($res->{id}) if $res->{id} and $self->can('id');
+      $self->$cb($err);
+    }
+  );
+}
+
+sub _update {
+  my ($self, $cb) = @_;
+  $self->db->query($self->_update_sst, sub { shift->$cb(shift); });
 }
 
 =head1 COPYRIGHT AND LICENSE
