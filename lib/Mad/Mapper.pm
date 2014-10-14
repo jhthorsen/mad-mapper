@@ -10,7 +10,9 @@ Mad::Mapper - Map Perl objects to MySQL or PostgreSQL row data
 
 =head1 DESCRIPTION
 
-L<Mad::Mapper> is a object to database adapter.
+L<Mad::Mapper> is base class that allow your objects to map to database rows.
+It is different from other ORMs, where your objects are now in center instead
+of the database.
 
 =head1 SYNOPSIS
 
