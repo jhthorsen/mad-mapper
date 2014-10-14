@@ -145,6 +145,36 @@ sub save {
   return $self;
 }
 
+=head2 import
+
+Will set up the caller class with L<Mad::Mapper> functionality if "-base"
+is given as argument. See L</SYNOPSIS> for example.
+
+=cut
+
+# Most of this code is copy/paste from Mojo::Base
+sub import {
+  my $class = shift;
+  return unless my $flag = shift;
+
+  if    ($flag eq '-base')   { $flag = $class }
+  elsif ($flag eq '-strict') { $flag = undef }
+  elsif ((my $file = $flag) && !$flag->can('new')) {
+    $file =~ s!::|'!/!g;
+    require "$file.pm";
+  }
+
+  if ($flag) {
+    my $caller = caller;
+    no strict 'refs';
+    push @{"${caller}::ISA"}, $flag;
+    *{"${caller}::has"} = sub { Mojo::Base::attr($caller, @_) };
+  }
+
+  $_->import for qw(strict warnings utf8);
+  feature->import(':5.10');
+}
+
 =head1 COPYRIGHT AND LICENSE
 
 Copyright (C) 2014, Jan Henning Thorsen
