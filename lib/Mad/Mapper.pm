@@ -21,11 +21,11 @@ L<Mad::Mapper> is a object to database adapter.
 
   has email => '';
   has id => undef;
-  has name => '';
 
-  sub _from { 'users' }
-  sub _columns { [ qw( email name id ) ] }
-  sub _unique { [ qw( id email ) ] }
+  sub _find { 'SELECT id, email FROM users WHERE email = ?', $_[0]->email }
+  sub _delete { 'DELETE FROM users WHERE id = ?', $_[0]->id }
+  sub _insert { 'INSERT INTO users ("email") VALUES(?)', $_[0]->email }
+  sub _update { 'UPDATE users SET email = ? WHERE id = ?', $_[0]->email, $_[0]->id }
 
 =head2 Complex
 
@@ -34,22 +34,6 @@ L<Mad::Mapper> is a object to database adapter.
 
   has email => '';
   has id => undef;
-
-  sub _find {
-    my ($self, $cb) = @_;
-
-    Mojo::IOLoop->delay(
-      sub {
-        my ($delay) = @_;
-        $self->db->query('SEARCH FROM users WHERE email = ?', $self->email, $delay->begin);
-      },
-      sub {
-        my ($delay, $err, $res) = @_;
-        return $self->$cb($err) if $err;
-        $self->in_storage(1) unless $err;
-      },
-    );
-  }
 
   sub _delete {
     my ($self, $cb) = @_;
@@ -67,6 +51,24 @@ L<Mad::Mapper> is a object to database adapter.
     );
   }
 
+  sub _find {
+    my ($self, $cb) = @_;
+
+    Mojo::IOLoop->delay(
+      sub {
+        my ($delay) = @_;
+        $self->db->query('SELECT id, email FROM users WHERE email = ?', $self->email, $delay->begin);
+      },
+      sub {
+        my ($delay, $err, $res) = @_;
+        return $self->$cb($err) if $err;
+        $self->in_storage(1) unless $err;
+        $res = $res->hash;
+        $self->$_ = $res->{$_} for qw( id email );
+      },
+    );
+  }
+
   sub _insert {
     my ($self, $cb) = @_;
 
@@ -77,8 +79,10 @@ L<Mad::Mapper> is a object to database adapter.
       },
       sub {
         my ($delay, $err, $res) = @_;
-        $self->in_storage(1) unless $err;
-        $self->$cb($err);
+        return $self->$cb($err) if $err;
+        $self->in_storage(1);
+        $self->id($res->sth->mysql_insertid);
+        $self->$cb('');
       },
     );
   }
