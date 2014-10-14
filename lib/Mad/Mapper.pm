@@ -18,7 +18,7 @@ of the database.
 
 =head2 Simple
 
-  package User;
+  package MyApp::Model::User;
   use Mad::Mapper -base;
 
   # Standard class attributes
@@ -29,7 +29,7 @@ of the database.
   # Same, but async: $self = $self->groups(sub { my ($self, $groups) = @_; ... });
   # The result is also cached until $self->fresh->groups(...) is called
   has_many groups => sub {
-    'User::Group',
+    'MyApp::Model::Group',
     'SELECT name FROM users WHERE user_id = ?', sub { $_[0]->id },
   }
 
@@ -41,45 +41,12 @@ of the database.
 
 =head2 Complex
 
-  package User;
+Instead of using the automatic generated methods from simple SQL statements,
+it is possible to do the complete query yourself. Below is the example of how
+the simple C<_insert()> method above can be done complex:
+
+  package MyApp::Model::User;
   use Mad::Mapper -base;
-
-  has email => '';
-  has id => undef;
-
-  sub _delete {
-    my ($self, $cb) = @_;
-
-    Mojo::IOLoop->delay(
-      sub {
-        my ($delay) = @_;
-        $self->db->query('DELETE FROM users WHERE id = ?', $self->id, $delay->begin);
-      },
-      sub {
-        my ($delay, $err, $res) = @_;
-        $self->in_storage(0) unless $err;
-        $self->$cb($err);
-      },
-    );
-  }
-
-  sub _find {
-    my ($self, $cb) = @_;
-
-    Mojo::IOLoop->delay(
-      sub {
-        my ($delay) = @_;
-        $self->db->query('SELECT id, email FROM users WHERE email = ?', $self->email, $delay->begin);
-      },
-      sub {
-        my ($delay, $err, $res) = @_;
-        return $self->$cb($err) if $err;
-        $self->in_storage(1) unless $err;
-        $res = $res->hash;
-        $self->$_ = $res->{$_} for qw( id email );
-      },
-    );
-  }
 
   sub _insert {
     my ($self, $cb) = @_;
@@ -99,20 +66,7 @@ of the database.
     );
   }
 
-  sub _update {
-    my ($self, $cb) = @_;
-
-    Mojo::IOLoop->delay(
-      sub {
-        my ($delay) = @_;
-        $self->db->query('UPDATE users SET email = ? WHERE id = ?', $self->email, $self->id, $delay->begin);
-      },
-      sub {
-        my ($delay, $err, $res) = @_;
-        $self->$cb($err);
-      },
-    );
-  }
+Note! The trick is to return an object, instead of a list.
 
 =cut
 
