@@ -19,10 +19,20 @@ L<Mad::Mapper> is a object to database adapter.
   package User;
   use Mad::Mapper -base;
 
+  # Standard class attributes
   has email => '';
   has id => undef;
 
-  sub _find { 'SELECT id, email FROM users WHERE email = ?', $_[0]->email }
+  # Return array-ref of User::Group objects: $groups = $self->groups;
+  # Same, but async: $self = $self->groups(sub { my ($self, $groups) = @_; ... });
+  # The result is also cached until $self->fresh->groups(...) is called
+  has_many groups => sub {
+    'User::Group',
+    'SELECT name FROM users WHERE user_id = ?', sub { $_[0]->id },
+  }
+
+  # Define methods to find, delete, insert or update the object in storage
+  sub _find   { 'SELECT id, email FROM users WHERE email = ?', $_[0]->email }
   sub _delete { 'DELETE FROM users WHERE id = ?', $_[0]->id }
   sub _insert { 'INSERT INTO users ("email") VALUES(?)', $_[0]->email }
   sub _update { 'UPDATE users SET email = ? WHERE id = ?', $_[0]->email, $_[0]->id }
