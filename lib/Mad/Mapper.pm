@@ -24,9 +24,9 @@ last is for end user.
   package MyApp::Model::User;
   use Mad::Mapper -base;
 
-  # Standard class attributes
-  has email => '';
-  has id => undef;
+  # Class attributes
+  col id => undef;
+  col email => '';
 
   # TODO!
   # Return array-ref of User::Group objects: $groups = $self->groups;
@@ -236,9 +236,15 @@ sub import {
 
   if ($flag) {
     my $caller = caller;
+    my @columns;
     no strict 'refs';
     push @{"${caller}::ISA"}, $flag;
     *{"${caller}::has"} = sub { Mojo::Base::attr($caller, @_) };
+    *{"${caller}::col"} = sub {
+      push @columns, ref $_[0] eq 'ARRAY' ? @{$_[0]} : $_[0];
+      Mojo::Base::attr($caller, @_);
+    };
+    *{"${caller}::column_names"} = sub {@columns};
   }
 
   $_->import for qw(strict warnings utf8);
@@ -267,8 +273,8 @@ sub _find {
     $self->_find_sst,
     sub {
       my ($db, $err, $res) = @_;
-      $res = $res->hash if $res;
-      $self->in_storage(1) if $res and !$err;
+      $res = $err ? {} : $res->hash || {};
+      $self->in_storage(1) if %$res and !$err;
       $self->{$_} = $res->{$_} for keys %$res;
       $self->$cb($err);
     }
@@ -284,7 +290,7 @@ sub _insert {
     sub {
       my ($db, $err, $res) = @_;
       $self->in_storage(1) unless $err;
-      $res = $res->hash;
+      $res = $err ? {} : $res->hash || {};
       $self->id($res->{id}) if $res->{id} and $self->can('id');
       $self->$cb($err);
     }
