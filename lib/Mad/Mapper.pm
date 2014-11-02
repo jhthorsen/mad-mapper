@@ -28,19 +28,20 @@ last is for end user.
   has email => '';
   has id => undef;
 
+  # TODO!
   # Return array-ref of User::Group objects: $groups = $self->groups;
   # Same, but async: $self = $self->groups(sub { my ($self, $groups) = @_; ... });
   # The result is also cached until $self->fresh->groups(...) is called
   has_many groups => sub {
-    'MyApp::Model::Group',
-    'SELECT name FROM users WHERE user_id = ?', sub { $_[0]->id },
+    "MyApp::Model::Group",
+    "SELECT name FROM users WHERE user_id = ?", sub { $_[0]->id },
   }
 
   # Define methods to find, delete, insert or update the object in storage
-  sub _find_sst   { 'SELECT id, email FROM users WHERE email = ?', $_[0]->email }
-  sub _delete_sst { 'DELETE FROM users WHERE id = ?', $_[0]->id }
-  sub _insert_sst { 'INSERT INTO users ("email") VALUES(?)', $_[0]->email }
-  sub _update_sst { 'UPDATE users SET email = ? WHERE id = ?', $_[0]->email, $_[0]->id }
+  sub _find_sst   { "SELECT id, email FROM users WHERE email = ?", $_[0]->email }
+  sub _delete_sst { "DELETE FROM users WHERE id = ?", $_[0]->id }
+  sub _insert_sst { "INSERT INTO users (email) VALUES(?)", $_[0]->email }
+  sub _update_sst { "UPDATE users SET email = ? WHERE id = ?", $_[0]->email, $_[0]->id }
 
 =head2 Complex
 
@@ -57,26 +58,26 @@ the simple C<_insert()> method above can be done complex:
     Mojo::IOLoop->delay(
       sub {
         my ($delay) = @_;
-        $self->db->query('INSERT INTO users ("email") VALUES(?)', $self->email, $delay->begin);
+        $self->db->query("INSERT INTO users (email) VALUES(?)", $self->email, $delay->begin);
       },
       sub {
         my ($delay, $err, $res) = @_;
         return $self->$cb($err) if $err;
         $self->in_storage(1);
         $self->id($res->sth->mysql_insertid);
-        $self->$cb('');
+        $self->$cb("");
       },
     );
   }
 
-=head2 End user
+=head2 High level usage
 
-  use experimental 'signatures';
   use Mojolicious::Lite;
   use MyApp::Model::User;
 
-  get '/profile' => sub ($c) {
-    my $user = MyApp::Model::User->new(id => $c->session('uid'));
+  get "/profile" => sub {
+    my $c = shift;
+    my $user = MyApp::Model::User->new(id => $c->session("uid"));
 
     $c->delay(
       sub {
@@ -91,13 +92,14 @@ the simple C<_insert()> method above can be done complex:
     );
   };
 
-  post '/profile' => sub ($c) {
-    my $user = MyApp::Model::User->new(id => $c->session('uid'));
+  post "/profile" => sub {
+    my $c = shift;
+    my $user = MyApp::Model::User->new(id => $c->session("uid"));
 
     $c->delay(
       sub {
         my ($delay) = @_;
-        $user->email($self->param('email'));
+        $user->email($self->param("email"));
         $user->save($delay->begin);
       },
       sub {
