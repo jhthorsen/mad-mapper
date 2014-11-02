@@ -301,7 +301,7 @@ sub _insert {
       my ($db, $err, $res) = @_;
       warn "[Mad::Mapper::insert] err=$err\n" if DEBUG and $err;
       $self->in_storage(1) unless $err;
-      $res = $err ? {} : $res->hash || {};
+      $res = eval { $res->hash } || {};
       $self->id($res->{id}) if $res->{id} and $self->can('id');
       $self->$cb($err);
     }
