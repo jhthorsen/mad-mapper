@@ -114,7 +114,9 @@ the simple C<_insert()> method above can be done complex:
 
 use Mojo::Base -base;
 use Mojo::IOLoop;
+use Mojo::JSON ();
 use Scalar::Util qw( blessed weaken );
+use constant DEBUG => $ENV{MAD_DEBUG} || 0;
 
 our $VERSION = '0.01';
 
@@ -253,12 +255,15 @@ sub import {
 
 sub _delete {
   my ($self, $cb) = @_;
+  my @sst = $self->_delete_sst;
 
   weaken $self;
+  warn "[Mad::Mapper::delete] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
   $self->db->query(
-    $self->_delete_sst,
+    @sst,
     sub {
       my ($db, $err, $res) = @_;
+      warn "[Mad::Mapper::delete] err=$err\n" if DEBUG and $err;
       $self->in_storage(0) unless $err;
       $self->$cb($err);
     }
@@ -267,12 +272,15 @@ sub _delete {
 
 sub _find {
   my ($self, $cb) = @_;
+  my @sst = $self->_find_sst;
 
+  warn "[Mad::Mapper::find] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
   weaken $self;
   $self->db->query(
-    $self->_find_sst,
+    @sst,
     sub {
       my ($db, $err, $res) = @_;
+      warn "[Mad::Mapper::find] err=$err\n" if DEBUG and $err;
       $res = $err ? {} : $res->hash || {};
       $self->in_storage(1) if %$res and !$err;
       $self->{$_} = $res->{$_} for keys %$res;
@@ -283,12 +291,15 @@ sub _find {
 
 sub _insert {
   my ($self, $cb) = @_;
+  my @sst = $self->_insert_sst;
 
+  warn "[Mad::Mapper::insert] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
   weaken $self;
   $self->db->query(
-    $self->_insert_sst,
+    @sst,
     sub {
       my ($db, $err, $res) = @_;
+      warn "[Mad::Mapper::insert] err=$err\n" if DEBUG and $err;
       $self->in_storage(1) unless $err;
       $res = $err ? {} : $res->hash || {};
       $self->id($res->{id}) if $res->{id} and $self->can('id');
@@ -299,7 +310,18 @@ sub _insert {
 
 sub _update {
   my ($self, $cb) = @_;
-  $self->db->query($self->_update_sst, sub { shift->$cb(shift); });
+  my @sst = $self->_update_sst;
+
+  warn "[Mad::Mapper::update] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
+  weaken $self;
+  $self->db->query(
+    @sst,
+    sub {
+      my ($db, $err, $res) = @_;
+      warn "[Mad::Mapper::update] err=$err\n" if DEBUG and $err;
+      $self->$cb($err);
+    }
+  );
 }
 
 =head1 COPYRIGHT AND LICENSE
