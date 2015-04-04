@@ -28,21 +28,6 @@ last is for end user.
   col id => undef;
   col email => '';
 
-  # TODO!
-  # Return array-ref of User::Group objects: $groups = $self->groups;
-  # Same, but async: $self = $self->groups(sub { my ($self, $groups) = @_; ... });
-  # The result is also cached until $self->fresh->groups(...) is called
-  has_many groups => sub {
-    "MyApp::Model::Group",
-    "SELECT name FROM users WHERE user_id = ?", sub { $_[0]->id },
-  }
-
-  # Define methods to find, delete, insert or update the object in storage
-  sub _find_sst   { "SELECT id, email FROM users WHERE email = ?", $_[0]->email }
-  sub _delete_sst { "DELETE FROM users WHERE id = ?", $_[0]->id }
-  sub _insert_sst { "INSERT INTO users (email) VALUES(?)", $_[0]->email }
-  sub _update_sst { "UPDATE users SET email = ? WHERE id = ?", $_[0]->email, $_[0]->id }
-
 =head2 Complex
 
 Instead of using the automatic generated methods from simple SQL statements,
@@ -58,7 +43,7 @@ the simple C<_insert()> method above can be done complex:
     Mojo::IOLoop->delay(
       sub {
         my ($delay) = @_;
-        $self->db->query("INSERT INTO users (email) VALUES(?)", $self->email, $delay->begin);
+        $self->db->query("INSERT INTO users (email) VALUES (?)", $self->email, $delay->begin);
       },
       sub {
         my ($delay, $err, $res) = @_;
@@ -115,10 +100,48 @@ the simple C<_insert()> method above can be done complex:
 use Mojo::Base -base;
 use Mojo::IOLoop;
 use Mojo::JSON ();
-use Scalar::Util qw( blessed weaken );
+use Scalar::Util 'weaken';
 use constant DEBUG => $ENV{MAD_DEBUG} || 0;
 
 our $VERSION = '0.01';
+
+my (%COLUMNS, %PK);
+
+=head1 SUGAR
+
+=head2 col
+
+Used to define a column. Follow the same rules as L</has>.
+
+=head2 has
+
+  has name => "Bruce";
+  has [qw(name email)];
+  has pet => sub { Cat->new };
+
+Same as L<Mojo::Base/has>.
+
+=head2 pk
+
+Used to define a primary key. Follow the same rules as L</has>.
+
+The primary key is used by default in L</refresh> and L</update> to update the
+correct row. If omitted, the first L</col> will act as primary key.
+
+Note that L</pk> is not returned by L</columns>.
+
+=head2 table
+
+Used to define a table name. The default is to use the last part of the class
+name and add "s" at the end, unless it already has "s" at the end. Examples:
+
+  .----------------------------.
+  | Class name        | table  |
+  |-------------------|--------|
+  | App::Model::User  | users  |
+  | App::Model::Users | users  |
+  | App::Model::Group | groups |
+  '----------------------------'
 
 =head1 ATTRIBUTES
 
@@ -140,6 +163,56 @@ has db => sub { die "'db' is required in constructor." };
 has in_storage => 0;
 
 =head1 METHODS
+
+=head2 expand_sst
+
+  ($sst, @args) = $self->expand_sst($sst, @args);
+
+Used to expand a given C<$sst> with variables defined by helpers.
+
+=over 4
+
+=item * %t
+
+Will be replaced by </table>. Example: "SELECT * FROM %t" becomes "SELECT * FROM users".
+
+=item * %c
+
+Will be replaced by L</columns>. Example: "id,name,email".
+
+=item * %c=
+
+Will be replaced by L</columns> assignment. Example: "id=?,name=?,email=?"
+
+=item * %c?
+
+Will be replaced by L</columns> placeholders. Example: "?,?,?"
+
+=item * \%c
+
+Becomes a literal "%c".
+
+=back
+
+=cut
+
+sub expand_sst {
+  my ($self, $sst, @args) = @_;
+
+  $sst =~ s|(?<!\\)\%c\=|{join ',', map {"$_=?"} $self->columns}|ge;
+  $sst =~ s|(?<!\\)\%c\?|{join ',', map {"?"} $self->columns}|ge;
+  $sst =~ s|(?<!\\)\%c|{join ',', $self->columns}|ge;
+  $sst =~ s|(?<!\\)\%t|{join ',', $self->table}|ge;
+  $sst =~ s|\\%|%|g;
+
+  return $sst, @args;
+}
+
+=head2 columns
+
+  @str = $self->columns;
+
+Returns a list of columns, defined by L</col>.
 
 =head2 delete
 
@@ -238,15 +311,16 @@ sub import {
 
   if ($flag) {
     my $caller = caller;
-    my @columns;
+    my $table = lc($caller =~ m!::(\w+)$! ? $1 : '');
+    $table =~ s!s?$!s!;    # user => users
+    Mojo::Util::monkey_patch($caller, col     => sub { $caller->_define_col(@_) });
+    Mojo::Util::monkey_patch($caller, columns => sub { @{$COLUMNS{$caller} || []} });
+    Mojo::Util::monkey_patch($caller, has     => sub { Mojo::Base::attr($caller, @_) });
+    Mojo::Util::monkey_patch($caller,
+      pk => sub { return UNIVERSAL::isa($_[0], $caller) ? $PK{$caller} : $caller->_define_pk(@_) });
+    Mojo::Util::monkey_patch($caller, table => sub { $table = $_[0] unless UNIVERSAL::isa($_[0], $caller); $table });
     no strict 'refs';
     push @{"${caller}::ISA"}, $flag;
-    *{"${caller}::has"} = sub { Mojo::Base::attr($caller, @_) };
-    *{"${caller}::col"} = sub {
-      push @columns, ref $_[0] eq 'ARRAY' ? @{$_[0]} : $_[0];
-      Mojo::Base::attr($caller, @_);
-    };
-    *{"${caller}::column_names"} = sub {@columns};
   }
 
   $_->import for qw(strict warnings utf8);
@@ -270,6 +344,18 @@ sub _delete {
   );
 }
 
+sub _define_col {
+  my $class = ref($_[0]) || $_[0];
+  push @{$COLUMNS{$class}}, ref $_[0] eq 'ARRAY' ? @{$_[1]} : $_[1];
+  Mojo::Base::attr(@_);
+}
+
+sub _define_pk {
+  my $class = ref($_[0]) || $_[0];
+  $PK{$class} = $_[1];
+  Mojo::Base::attr(@_);
+}
+
 sub _find {
   my ($self, $cb) = @_;
   my @sst = $self->_find_sst;
@@ -289,8 +375,16 @@ sub _find {
   );
 }
 
+sub _find_sst {
+  my $self = shift;
+  my $pk = $self->pk || ($self->columns)[0];
+
+  $self->expand_sst("SELECT %c FROM %t WHERE $pk=?"), $self->$pk;
+}
+
 sub _insert {
   my ($self, $cb) = @_;
+  my $pk = $self->pk || ($self->columns)[0];
   my @sst = $self->_insert_sst;
 
   warn "[Mad::Mapper::insert] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
@@ -300,12 +394,22 @@ sub _insert {
     sub {
       my ($db, $err, $res) = @_;
       warn "[Mad::Mapper::insert] err=$err\n" if DEBUG and $err;
-      $self->in_storage(1) unless $err;
       $res = eval { $res->hash } || {};
-      $self->id($res->{id}) if $res->{id} and $self->can('id');
+      $res->{$pk} ||= eval { $res->sth->mysql_insertid } if $pk;
+      $self->in_storage(1) if $res;
+      $self->$_($res->{$_}) for grep { $self->can($_) } keys %$res;
       $self->$cb($err);
     }
   );
+}
+
+sub _insert_sst {
+  my $self = shift;
+  my $pk   = $self->pk;
+  my $sql  = "INSERT INTO %t (%c) VALUES (%c?)";
+
+  $sql .= " RETURNING $pk" if $pk and UNIVERSAL::isa($self->db, 'Mojo::Pg::Database');
+  $self->expand_sst($sql), map { $self->$_ } $self->columns;
 }
 
 sub _update {
@@ -322,6 +426,13 @@ sub _update {
       $self->$cb($err);
     }
   );
+}
+
+sub _update_sst {
+  my $self = shift;
+  my $pk = $self->pk || ($self->columns)[0];
+
+  $self->expand_sst("UPDATE %t SET %c? WHERE $pk=?"), (map { $self->$_ } $self->columns), $self->$pk;
 }
 
 =head1 COPYRIGHT AND LICENSE
