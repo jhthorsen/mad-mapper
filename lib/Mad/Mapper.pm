@@ -55,6 +55,31 @@ the simple C<_insert()> method above can be done complex:
     );
   }
 
+=head2 Has many relationship
+
+Define a relationship:
+
+  has_many groups => "MyApp::Model::Group" => sub {
+    my ($self) = @_;
+    "SELECT %pc FROM %t WHERE id_user = ?", $self->id;
+  };
+
+See L</EXPANSION> for more information about C<%t> and C<%c>, but note that
+in this case they are relative to C<MyApp::Model::Group> and not the current
+class.
+
+Return L<Mojo::Collection> of C<MyApp::Model::Group> objects:
+
+  $groups = $self->groups;
+
+Same, but async:
+
+  $self = $self->groups(sub { my ($self, $err, $groups) = @_; ... });
+
+It is also possible to make a simpler definition:
+
+  has_many groups => "MyApp::Model::Group", "id_user";
+
 =head2 High level usage
 
   use Mojolicious::Lite;
@@ -98,14 +123,16 @@ the simple C<_insert()> method above can be done complex:
 =cut
 
 use Mojo::Base -base;
+use Mojo::Collection;
 use Mojo::IOLoop;
 use Mojo::JSON ();
+use Mojo::Loader 'load_class';
 use Scalar::Util 'weaken';
 use constant DEBUG => $ENV{MAD_DEBUG} || 0;
 
 our $VERSION = '0.01';
 
-my (%COLUMNS, %PK);
+my (%COLUMNS, %LOADED, %PK);
 
 =head1 SUGAR
 
@@ -178,15 +205,19 @@ Will be replaced by </table>. Example: "SELECT * FROM %t" becomes "SELECT * FROM
 
 =item * %c
 
-Will be replaced by L</columns>. Example: "id,name,email".
+Will be replaced by L</columns>. Example: "name,email".
 
 =item * %c=
 
-Will be replaced by L</columns> assignment. Example: "id=?,name=?,email=?"
+Will be replaced by L</columns> assignment. Example: "name=?,email=?"
 
 =item * %c?
 
 Will be replaced by L</columns> placeholders. Example: "?,?,?"
+
+=item * %pc
+
+Include L</pk> in list of columns. Example: "id,name,email".
 
 =item * \%c
 
@@ -202,6 +233,7 @@ sub expand_sst {
   $sst =~ s|(?<!\\)\%c\=|{join ',', map {"$_=?"} $self->columns}|ge;
   $sst =~ s|(?<!\\)\%c\?|{join ',', map {"?"} $self->columns}|ge;
   $sst =~ s|(?<!\\)\%c|{join ',', $self->columns}|ge;
+  $sst =~ s|(?<!\\)\%pc|{join ',', $self->pk, $self->columns}|ge;
   $sst =~ s|(?<!\\)\%t|{join ',', $self->table}|ge;
   $sst =~ s|\\%|%|g;
 
@@ -313,9 +345,10 @@ sub import {
     my $caller = caller;
     my $table = lc($caller =~ m!::(\w+)$! ? $1 : '');
     $table =~ s!s?$!s!;    # user => users
-    Mojo::Util::monkey_patch($caller, col     => sub { $caller->_define_col(@_) });
-    Mojo::Util::monkey_patch($caller, columns => sub { @{$COLUMNS{$caller} || []} });
-    Mojo::Util::monkey_patch($caller, has     => sub { Mojo::Base::attr($caller, @_) });
+    Mojo::Util::monkey_patch($caller, col      => sub { $caller->_define_col(@_) });
+    Mojo::Util::monkey_patch($caller, columns  => sub { @{$COLUMNS{$caller} || []} });
+    Mojo::Util::monkey_patch($caller, has      => sub { Mojo::Base::attr($caller, @_) });
+    Mojo::Util::monkey_patch($caller, has_many => sub { $caller->_define_has_many(@_) });
     Mojo::Util::monkey_patch($caller,
       pk => sub { return UNIVERSAL::isa($_[0], $caller) ? $PK{$caller} : $caller->_define_pk(@_) });
     Mojo::Util::monkey_patch($caller, table => sub { $table = $_[0] unless UNIVERSAL::isa($_[0], $caller); $table });
@@ -350,6 +383,47 @@ sub _define_col {
   Mojo::Base::attr(@_);
 }
 
+sub _define_has_many {
+  my ($class, $method, $related_class, $generator) = @_;
+
+  unless (ref $generator) {
+    my $col = $generator;
+    my $pk  = $class->_pk_or_first_column;
+    $generator = sub { "SELECT %pc FROM %t WHERE $col=?", $_[0]->$pk };
+  }
+
+  Mojo::Util::monkey_patch(
+    $class => $method => sub {
+      my ($self, $cb) = @_;
+      my $err = $LOADED{$related_class}++ ? 0 : load_class $related_class;
+      die ref $err ? "Exception: $err" : "Could not find class $related_class!" if $err;
+
+      if ($cb) {
+        if ($self->{cache}{$method}) {
+          $self->$cb('', $self->{cache}{$method});
+        }
+        else {
+          $self->db->query(
+            $related_class->expand_sst($self->$generator),
+            sub {
+              my ($db, $err, $res) = @_;
+              warn "[Mad::Mapper::has_many::$method] err=$err\n" if DEBUG and $err;
+              $self->{cache}{$method}
+                = Mojo::Collection->new($res->hashes->map(sub { $related_class->new($_)->in_storage(1) }));
+              $self->$cb($err, $self->{cache}{$method});
+            }
+          );
+        }
+        return $self;
+      }
+
+      return $self->{cache}{$method}
+        ||= Mojo::Collection->new($self->db->query($related_class->expand_sst($self->$generator))
+          ->hashes->map(sub { $related_class->new($_)->in_storage(1) }));
+    }
+  );
+}
+
 sub _define_pk {
   my $class = ref($_[0]) || $_[0];
   $PK{$class} = $_[1];
@@ -377,14 +451,14 @@ sub _find {
 
 sub _find_sst {
   my $self = shift;
-  my $pk = $self->pk || ($self->columns)[0];
+  my $pk   = $self->_pk_or_first_column;
 
   $self->expand_sst("SELECT %c FROM %t WHERE $pk=?"), $self->$pk;
 }
 
 sub _insert {
   my ($self, $cb) = @_;
-  my $pk = $self->pk || ($self->columns)[0];
+  my $pk  = $self->_pk_or_first_column;
   my @sst = $self->_insert_sst;
 
   warn "[Mad::Mapper::insert] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
@@ -412,6 +486,8 @@ sub _insert_sst {
   $self->expand_sst($sql), map { $self->$_ } $self->columns;
 }
 
+sub _pk_or_first_column { $_[0]->pk || ($_[0]->columns)[0] }
+
 sub _update {
   my ($self, $cb) = @_;
   my @sst = $self->_update_sst;
@@ -430,7 +506,7 @@ sub _update {
 
 sub _update_sst {
   my $self = shift;
-  my $pk = $self->pk || ($self->columns)[0];
+  my $pk   = $self->_pk_or_first_column;
 
   $self->expand_sst("UPDATE %t SET %c? WHERE $pk=?"), (map { $self->$_ } $self->columns), $self->$pk;
 }

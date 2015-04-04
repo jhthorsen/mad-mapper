@@ -20,7 +20,8 @@ is_deeply([$user->columns], [qw( name email )], 'columns');
 
 is_deeply([$user->_find_sst], ['SELECT name,email FROM users WHERE id=?', qw( 42 )], 'find');
 
-is_deeply([$user->expand_sst('%t \\\%t')], ['users \%t'], 'escaped');
+is_deeply([$user->expand_sst('%t \\\%t')], ['users \%t'],     'escaped');
+is_deeply([$user->expand_sst('%pc')],      ['id,name,email'], 'pc');
 
 is_deeply([$user->_insert_sst],
   ['INSERT INTO users (name,email) VALUES (?,?) RETURNING id', qw( Bruce bruce@wayneenterprise.com )], 'insert');
