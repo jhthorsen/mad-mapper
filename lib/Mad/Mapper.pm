@@ -59,14 +59,10 @@ the simple C<_insert()> method above can be done complex:
 
 Define a relationship:
 
-  has_many groups => "MyApp::Model::Group" => sub {
-    my ($self) = @_;
-    "SELECT %pc FROM %t WHERE id_user = ?", $self->id;
-  };
+  has_many groups => "MyApp::Model::Group", "id_user";
 
-See L</EXPANSION> for more information about C<%t> and C<%c>, but note that
-in this case they are relative to C<MyApp::Model::Group> and not the current
-class.
+Here "id_user" in the "groups" table should reference back to
+the L<primary key|/pk> in the current table.
 
 Return L<Mojo::Collection> of C<MyApp::Model::Group> objects:
 
@@ -76,9 +72,10 @@ Same, but async:
 
   $self = $self->groups(sub { my ($self, $err, $groups) = @_; ... });
 
-It is also possible to make a simpler definition:
+Create a new C<MyApp::Model::Group> object:
 
-  has_many groups => "MyApp::Model::Group", "id_user";
+  $group = $self->add_group(\%constructor_args);
+  $group->save;
 
 =head2 High level usage
 
@@ -270,6 +267,17 @@ sub delete {
   return $self;
 }
 
+=head2 fresh
+
+  $self = $self->fresh;
+
+Will mark the next relationship accessor to fetch new data from database,
+instead of using the cached data on C<$self>.
+
+=cut
+
+sub fresh { $_[0]->{fresh}++; $_[0] }
+
 =head2 refresh
 
   $self = $self->refresh;
@@ -390,27 +398,28 @@ sub _define_col {
 }
 
 sub _define_has_many {
-  my ($class, $method, $related_class, $generator) = @_;
-
-  unless (ref $generator) {
-    my $col = $generator;
-    my $pk  = $class->_pk_or_first_column;
-    $generator = sub { "SELECT %pc FROM %t WHERE $col=?", $_[0]->$pk };
-  }
+  my ($class, $method, $related_class, $related_col) = @_;
+  my $pk = $class->_pk_or_first_column;
+  my $generator = sub { "SELECT %pc FROM %t WHERE $related_col=?", $_[0]->$pk };
 
   Mojo::Util::monkey_patch(
     $class => $method => sub {
       my ($self, $cb) = @_;
       my $err = $LOADED{$related_class}++ ? 0 : load_class $related_class;
+      my $fresh = delete $self->{fresh};
+      my @sst;
+
       die ref $err ? "Exception: $err" : "Could not find class $related_class!" if $err;
 
+      @sst = $related_class->expand_sst($self->$generator);
+      warn sprintf "[Mad::Mapper::has_many::$method] %s\n",
+        (!$fresh and $self->{cache}{$method}) ? 'CACHED' : Mojo::JSON::encode_json(\@sst)
+        if DEBUG;
+
       if ($cb) {
-        if ($self->{cache}{$method}) {
-          $self->$cb('', $self->{cache}{$method});
-        }
-        else {
+        if ($fresh or !$self->{cache}{$method}) {
           $self->db->query(
-            $related_class->expand_sst($self->$generator),
+            \@sst,
             sub {
               my ($db, $err, $res) = @_;
               warn "[Mad::Mapper::has_many::$method] err=$err\n" if DEBUG and $err;
@@ -419,11 +428,26 @@ sub _define_has_many {
             }
           );
         }
+        else {
+          $self->$cb('', $self->{cache}{$method});
+        }
         return $self;
       }
+      else {
+        delete $self->{cache}{$method} if $fresh;
+        return $self->{cache}{$method}
+          ||= $self->db->query(@sst)->hashes->map(sub { $related_class->new($_)->in_storage(1) });
+      }
+    }
+  );
 
-      return $self->{cache}{$method} ||= $self->db->query($related_class->expand_sst($self->$generator))
-        ->hashes->map(sub { $related_class->new($_)->in_storage(1) });
+  my $add_method = "add_$method";
+  $add_method =~ s!s?$!!;
+  Mojo::Util::monkey_patch(
+    $class => $add_method => sub {
+      my $self = shift;
+      my $err = $LOADED{$related_class}++ ? 0 : load_class $related_class;
+      $related_class->new(db => $self->db, @_, $related_col => $self->$pk);
     }
   );
 }
