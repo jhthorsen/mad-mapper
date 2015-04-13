@@ -4,9 +4,10 @@ use Mad::Mapper -base;
 table 'mad_mapper_simple_users';
 
 pk 'id';
-
 col email => '';
 col name  => '';
+
+has_many groups => 't::Group' => 'user_id';
 
 sub _find_sst {
   my $self = shift;

@@ -9,7 +9,7 @@ my $pg = Mojo::Pg->new($ENV{TEST_ONLINE});
 my $user = t::User->new(db => $pg->db);
 my $err;
 
-$pg->db->query('DROP TABLE IF EXISTS mad_mapper_simple_users') if $ENV{MAD_CLEANUP};
+$pg->db->query('DROP TABLE IF EXISTS mad_mapper_simple_users');
 $pg->db->query('CREATE TABLE IF NOT EXISTS mad_mapper_simple_users (id SERIAL, email varchar(255), name TEXT)');
 
 ok !$user->in_storage, 'not in_storage';

@@ -123,7 +123,6 @@ It is also possible to make a simpler definition:
 =cut
 
 use Mojo::Base -base;
-use Mojo::Collection;
 use Mojo::IOLoop;
 use Mojo::JSON ();
 use Mojo::Loader 'load_class';
@@ -415,8 +414,7 @@ sub _define_has_many {
             sub {
               my ($db, $err, $res) = @_;
               warn "[Mad::Mapper::has_many::$method] err=$err\n" if DEBUG and $err;
-              $self->{cache}{$method}
-                = Mojo::Collection->new($res->hashes->map(sub { $related_class->new($_)->in_storage(1) }));
+              $self->{cache}{$method} = $res->hashes->map(sub { $related_class->new($_)->in_storage(1) });
               $self->$cb($err, $self->{cache}{$method});
             }
           );
@@ -424,9 +422,8 @@ sub _define_has_many {
         return $self;
       }
 
-      return $self->{cache}{$method}
-        ||= Mojo::Collection->new($self->db->query($related_class->expand_sst($self->$generator))
-          ->hashes->map(sub { $related_class->new($_)->in_storage(1) }));
+      return $self->{cache}{$method} ||= $self->db->query($related_class->expand_sst($self->$generator))
+        ->hashes->map(sub { $related_class->new($_)->in_storage(1) });
     }
   );
 }
