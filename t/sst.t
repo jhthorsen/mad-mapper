@@ -18,7 +18,7 @@ is($user->table, 'users', 'table');
 
 is_deeply([$user->columns], [qw( name email )], 'columns');
 
-is_deeply([$user->_find_sst], ['SELECT name,email FROM users WHERE id=?', qw( 42 )], 'find');
+is_deeply([$user->_find_sst], ['SELECT id,name,email FROM users WHERE id=?', qw( 42 )], 'find');
 
 is_deeply([$user->expand_sst('%t \\\%t')], ['users \%t'],     'escaped');
 is_deeply([$user->expand_sst('%pc')],      ['id,name,email'], 'pc');
@@ -26,7 +26,7 @@ is_deeply([$user->expand_sst('%pc')],      ['id,name,email'], 'pc');
 is_deeply([$user->_insert_sst],
   ['INSERT INTO users (name,email) VALUES (?,?) RETURNING id', qw( Bruce bruce@wayneenterprise.com )], 'insert');
 
-is_deeply([$user->_update_sst], ['UPDATE users SET ?,? WHERE id=?', qw( Bruce bruce@wayneenterprise.com 42 )],
-  'update');
+is_deeply([$user->_update_sst],
+  ['UPDATE users SET name=?,email=? WHERE id=?', qw( Bruce bruce@wayneenterprise.com 42 )], 'update');
 
 done_testing;

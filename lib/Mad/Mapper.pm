@@ -59,7 +59,7 @@ the simple C<_insert()> method above can be done complex:
 
 Define a relationship:
 
-  has_many groups => "MyApp::Model::Group" => sub {
+  has_many groups => "MyApp::Model::Group" => sub {
     my ($self) = @_;
     "SELECT %pc FROM %t WHERE id_user = ?", $self->id;
   };
@@ -343,7 +343,7 @@ sub import {
 
   if ($flag) {
     my $caller = caller;
-    my $table = lc($caller =~ m!::(\w+)$! ? $1 : '');
+    my $table = lc +(split /::/, $caller)[-1];
     $table =~ s!s?$!s!;    # user => users
     Mojo::Util::monkey_patch($caller, col      => sub { $caller->_define_col(@_) });
     Mojo::Util::monkey_patch($caller, columns  => sub { @{$COLUMNS{$caller} || []} });
@@ -375,6 +375,13 @@ sub _delete {
       $self->$cb($err);
     }
   );
+}
+
+sub _delete_sst {
+  my $self = shift;
+  my $pk   = $self->_pk_or_first_column;
+
+  $self->expand_sst("DELETE FROM %t WHERE $pk=?"), $self->$pk;
 }
 
 sub _define_col {
@@ -453,7 +460,7 @@ sub _find_sst {
   my $self = shift;
   my $pk   = $self->_pk_or_first_column;
 
-  $self->expand_sst("SELECT %c FROM %t WHERE $pk=?"), $self->$pk;
+  $self->expand_sst("SELECT %pc FROM %t WHERE $pk=?"), $self->$pk;
 }
 
 sub _insert {
@@ -508,7 +515,7 @@ sub _update_sst {
   my $self = shift;
   my $pk   = $self->_pk_or_first_column;
 
-  $self->expand_sst("UPDATE %t SET %c? WHERE $pk=?"), (map { $self->$_ } $self->columns), $self->$pk;
+  $self->expand_sst("UPDATE %t SET %c= WHERE $pk=?"), (map { $self->$_ } $self->columns), $self->$pk;
 }
 
 =head1 COPYRIGHT AND LICENSE
