@@ -78,7 +78,7 @@ the simple C<_insert()> method above can be done complex:
     $c->delay(
       sub {
         my ($delay) = @_;
-        $user->refresh($delay->begin);
+        $user->load($delay->begin);
       },
       sub {
         my ($delay, $err) = @_;
@@ -167,7 +167,7 @@ Same as L<Mojo::Base/has>.
 
 Used to define a primary key. Follow the same rules as L</has>.
 
-The primary key is used by default in L</refresh> and L</update> to update the
+The primary key is used by default in L</load> and L</update> to update the
 correct row. If omitted, the first L</col> will act as primary key.
 
 Note that L</pk> is not returned by L</columns>.
@@ -297,16 +297,16 @@ instead of using the cached data on C<$self>.
 
 sub fresh { $_[0]->{fresh}++; $_[0] }
 
-=head2 refresh
+=head2 load
 
-  $self = $self->refresh;
-  $self = $class->refresh(sub { my ($self, $err) = @_; });
+  $self = $self->load;
+  $self = $class->load(sub { my ($self, $err) = @_; });
 
 Used to fetch data from storage and update the object attributes.
 
 =cut
 
-sub refresh {
+sub load {
   my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
   my $self = shift;
 

@@ -31,11 +31,11 @@ Mojo::IOLoop->start;
 ok !$err, 'save() updated' or diag $err;
 is $pg->db->query('SELECT COUNT(*) AS n FROM mad_mapper_simple_users')->hash->{n}, 1, 'one row in database';
 
-$user = t::User->new(db => $pg->db, email => 'test@example.com')->refresh;
+$user = t::User->new(db => $pg->db, email => 'test@example.com')->load;
 ok !$user->in_storage, 'could not find user in storage';
 ok !$user->id,         'no id';
 
-$user = t::User->new(db => $pg->db, email => 'foo@example.com')->refresh;
+$user = t::User->new(db => $pg->db, email => 'foo@example.com')->load;
 ok $user->in_storage, 'found user in storage';
 ok $user->id,         'got id';
 
