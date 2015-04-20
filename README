@@ -70,7 +70,7 @@ SYNOPSIS
         $c->delay(
           sub {
             my ($delay) = @_;
-            $user->refresh($delay->begin);
+            $user->load($delay->begin);
           },
           sub {
             my ($delay, $err) = @_;
@@ -140,8 +140,8 @@ SUGAR
   pk
     Used to define a primary key. Follow the same rules as "has".
 
-    The primary key is used by default in "refresh" and "update" to update
-    the correct row. If omitted, the first "col" will act as primary key.
+    The primary key is used by default in "load" and "update" to update the
+    correct row. If omitted, the first "col" will act as primary key.
 
     Note that "pk" is not returned by "columns".
 

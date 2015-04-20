@@ -1,6 +1,6 @@
 Revision history for perl distribution Mad-Mapper
 
-0.01 Not Released
+0.01 2015-04-20T20:44:10+0200
  - Add col(), pk() and table() sugar
  - Add delete(), load() and save()
  - Add "has many" relationship
