@@ -10,14 +10,16 @@ Mad::Mapper - Map Perl objects to MySQL or PostgreSQL row data
 
 =head1 DESCRIPTION
 
-L<Mad::Mapper> is base class that allow your objects to map to database rows.
-It is different from other ORMs, where your objects are now in center instead
-of the database.
+L<Mad::Mapper> is base class for objects that should be stored to the a
+persistent SQL database. Currently the supported backends are L<Mojo::Pg>
+or L<Mojo::mysql>, both which are optional dependencies.
+
+THIS MODULE IS EXPERIMENTAL!
 
 =head1 SYNOPSIS
 
-The synopsis is split into three parts: The two first is for developers and the
-last is for end user.
+The synopsis is split into three parts: The two first is for model developers,
+and the last is for the developer using the models.
 
 =head2 Simple
 
@@ -55,10 +57,67 @@ the simple C<_insert()> method above can be done complex:
     );
   }
 
-=head2 Has many relationship
+=head2 High level usage
+
+  use Mojolicious::Lite;
+  use MyApp::Model::User;
+  use Mojo::Pg;
+
+  my $pg = Mojo::Pg->new;
+
+  helper model => sub {
+    my $c = shift;
+    my $model = "MyApp::Model::" .shift;
+    return $model->new(db => $pg->db, @_);
+  };
+
+  get "/profile" => sub {
+    my $c    = shift;
+    my $user = $c->model(User => id => $c->session("uid"));
+
+    $c->delay(
+      sub {
+        my ($delay) = @_;
+        $user->refresh($delay->begin);
+      },
+      sub {
+        my ($delay, $err) = @_;
+        return $self->render_exception($err) if $err;
+        return $self->render(user => $user);
+      },
+    );
+  };
+
+  post "/profile" => sub {
+    my $c    = shift;
+    my $user = $c->model(User => id => $c->session("uid"));
+
+    $c->delay(
+      sub {
+        my ($delay) = @_;
+        $user->email($self->param("email"));
+        $user->save($delay->begin);
+      },
+      sub {
+        my ($delay, $err) = @_;
+        return $self->render_exception($err) if $err;
+        return $self->render(user => $user);
+      },
+    );
+  };
+
+=head1 RELATIONSHIPS
+
+Currently one a basic L</has_many> relationship is supported.
+
+TODO: C<belongs_to()> to and maybe C<has_one()>.
+
+=head2 Has many
 
 Define a relationship:
 
+  package MyApp::Model::User;
+  use Mad::Mapper -base;
   has_many groups => "MyApp::Model::Group", "id_user";
 
 Here "id_user" in the "groups" table should reference back to
@@ -76,46 +135,6 @@ Create a new C<MyApp::Model::Group> object:
 
   $group = $self->add_group(\%constructor_args);
   $group->save;
-
-=head2 High level usage
-
-  use Mojolicious::Lite;
-  use MyApp::Model::User;
-
-  get "/profile" => sub {
-    my $c = shift;
-    my $user = MyApp::Model::User->new(id => $c->session("uid"));
-
-    $c->delay(
-      sub {
-        my ($delay) = @_;
-        $user->refresh($delay->begin);
-      },
-      sub {
-        my ($delay, $err) = @_;
-        return $self->render_exception($err) if $err;
-        return $self->render(user => $user);
-      },
-    );
-  };
-
-  post "/profile" => sub {
-    my $c = shift;
-    my $user = MyApp::Model::User->new(id => $c->session("uid"));
-
-    $c->delay(
-      sub {
-        my ($delay) = @_;
-        $user->email($self->param("email"));
-        $user->save($delay->begin);
-      },
-      sub {
-        my ($delay, $err) = @_;
-        return $self->render_exception($err) if $err;
-        return $self->render(user => $user);
-      },
-    );
-  };
 
 =cut
 
@@ -400,7 +419,6 @@ sub _define_col {
 sub _define_has_many {
   my ($class, $method, $related_class, $related_col) = @_;
   my $pk = $class->_pk_or_first_column;
-  my $generator = sub { "SELECT %pc FROM %t WHERE $related_col=?", $_[0]->$pk };
 
   Mojo::Util::monkey_patch(
     $class => $method => sub {
@@ -411,7 +429,7 @@ sub _define_has_many {
 
       die ref $err ? "Exception: $err" : "Could not find class $related_class!" if $err;
 
-      @sst = $related_class->expand_sst($self->$generator);
+      @sst = $related_class->expand_sst("SELECT %pc FROM %t WHERE $related_col=?", $self->$pk);
       warn sprintf "[Mad::Mapper::has_many::$method] %s\n",
         (!$fresh and $self->{cache}{$method}) ? 'CACHED' : Mojo::JSON::encode_json(\@sst)
         if DEBUG;
