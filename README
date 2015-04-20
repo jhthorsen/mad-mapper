@@ -5,32 +5,23 @@ VERSION
     0.01
 
 DESCRIPTION
-    Mad::Mapper is base class that allow your objects to map to database
-    rows. It is different from other ORMs, where your objects are now in
-    center instead of the database.
+    Mad::Mapper is base class for objects that should be stored to the a
+    persistent SQL database. Currently the supported backends are Mojo::Pg
+    or Mojo::mysql, both which are optional dependencies.
+
+    THIS MODULE IS EXPERIMENTAL!
 
 SYNOPSIS
+    The synopsis is split into three parts: The two first is for model
+    developers, and the last is for the developer using the models.
+
   Simple
       package MyApp::Model::User;
       use Mad::Mapper -base;
 
-      # Standard class attributes
-      has email => '';
-      has id => undef;
-
-      # Return array-ref of User::Group objects: $groups = $self->groups;
-      # Same, but async: $self = $self->groups(sub { my ($self, $groups) = @_; ... });
-      # The result is also cached until $self->fresh->groups(...) is called
-      has_many groups => sub {
-        'MyApp::Model::Group',
-        'SELECT name FROM users WHERE user_id = ?', sub { $_[0]->id },
-      }
-
-      # Define methods to find, delete, insert or update the object in storage
-      sub _find_sst   { 'SELECT id, email FROM users WHERE email = ?', $_[0]->email }
-      sub _delete_sst { 'DELETE FROM users WHERE id = ?', $_[0]->id }
-      sub _insert_sst { 'INSERT INTO users ("email") VALUES(?)', $_[0]->email }
-      sub _update_sst { 'UPDATE users SET email = ? WHERE id = ?', $_[0]->email, $_[0]->id }
+      # Class attributes
+      col id => undef;
+      col email => '';
 
   Complex
     Instead of using the automatic generated methods from simple SQL
@@ -47,17 +38,125 @@ SYNOPSIS
         Mojo::IOLoop->delay(
           sub {
             my ($delay) = @_;
-            $self->db->query('INSERT INTO users ("email") VALUES(?)', $self->email, $delay->begin);
+            $self->db->query("INSERT INTO users (email) VALUES (?)", $self->email, $delay->begin);
           },
           sub {
             my ($delay, $err, $res) = @_;
             return $self->$cb($err) if $err;
             $self->in_storage(1);
             $self->id($res->sth->mysql_insertid);
-            $self->$cb('');
+            $self->$cb("");
           },
         );
       }
+
+  High level usage
+      use Mojolicious::Lite;
+      use MyApp::Model::User;
+      use Mojo::Pg;
+
+      my $pg = Mojo::Pg->new;
+
+      helper model => sub {
+        my $c = shift;
+        my $model = "MyApp::Model::" .shift;
+        return $model->new(db => $pg->db, @_);
+      };
+
+      get "/profile" => sub {
+        my $c    = shift;
+        my $user = $c->model(User => id => $c->session("uid"));
+
+        $c->delay(
+          sub {
+            my ($delay) = @_;
+            $user->refresh($delay->begin);
+          },
+          sub {
+            my ($delay, $err) = @_;
+            return $self->render_exception($err) if $err;
+            return $self->render(user => $user);
+          },
+        );
+      };
+
+      post "/profile" => sub {
+        my $c    = shift;
+        my $user = $c->model(User => id => $c->session("uid"));
+
+        $c->delay(
+          sub {
+            my ($delay) = @_;
+            $user->email($self->param("email"));
+            $user->save($delay->begin);
+          },
+          sub {
+            my ($delay, $err) = @_;
+            return $self->render_exception($err) if $err;
+            return $self->render(user => $user);
+          },
+        );
+      };
+
+RELATIONSHIPS
+    Currently one a basic "has_many" relationship is supported.
+
+    TODO: "belongs_to()" to and maybe "has_one()".
+
+  Has many
+    Define a relationship:
+
+      package MyApp::Model::User;
+      use Mad::Mapper -base;
+      has_many groups => "MyApp::Model::Group", "id_user";
+
+    Here "id_user" in the "groups" table should reference back to the
+    primary key in the current table.
+
+    Return Mojo::Collection of "MyApp::Model::Group" objects:
+
+      $groups = $self->groups;
+
+    Same, but async:
+
+      $self = $self->groups(sub { my ($self, $err, $groups) = @_; ... });
+
+    Create a new "MyApp::Model::Group" object:
+
+      $group = $self->add_group(\%constructor_args);
+      $group->save;
+
+SUGAR
+  col
+    Used to define a column. Follow the same rules as "has".
+
+  has
+      has name => "Bruce";
+      has [qw(name email)];
+      has pet => sub { Cat->new };
+
+    Same as "has" in Mojo::Base.
+
+  pk
+    Used to define a primary key. Follow the same rules as "has".
+
+    The primary key is used by default in "refresh" and "update" to update
+    the correct row. If omitted, the first "col" will act as primary key.
+
+    Note that "pk" is not returned by "columns".
+
+  table
+    Used to define a table name. The default is to use the last part of the
+    class name and add "s" at the end, unless it already has "s" at the end.
+    Examples:
+
+      .----------------------------.
+      | Class name        | table  |
+      |-------------------|--------|
+      | App::Model::User  | users  |
+      | App::Model::Users | users  |
+      | App::Model::Group | groups |
+      '----------------------------'
 
 ATTRIBUTES
   db
@@ -72,11 +171,58 @@ ATTRIBUTES
       $self = $self->in_storage($bool);
 
 METHODS
+  expand_sst
+      ($sst, @args) = $self->expand_sst($sst, @args);
+
+    Used to expand a given $sst with variables defined by helpers.
+
+    *   %t
+
+        Will be replaced by </table>. Example: "SELECT * FROM %t" becomes
+        "SELECT * FROM users".
+
+    *   %c
+
+        Will be replaced by "columns". Example: "name,email".
+
+    *   %c=
+
+        Will be replaced by "columns" assignment. Example: "name=?,email=?"
+
+    *   %c?
+
+        Will be replaced by "columns" placeholders. Example: "?,?,?"
+
+    *   %pc
+
+        Include "pk" in list of columns. Example: "id,name,email".
+
+    *   \%c
+
+        Becomes a literal "%c".
+
+  columns
+      @str = $self->columns;
+
+    Returns a list of columns, defined by "col".
+
   delete
       $self = $self->delete;
       $self = $self->delete(sub { my ($self, $err) = @_, ... });
 
     Will delete the object from database if "in_storage".
+
+  fresh
+      $self = $self->fresh;
+
+    Will mark the next relationship accessor to fetch new data from
+    database, instead of using the cached data on $self.
+
+  load
+      $self = $self->load;
+      $self = $class->load(sub { my ($self, $err) = @_; });
+
+    Used to fetch data from storage and update the object attributes.
 
   save
       $self = $self->save;

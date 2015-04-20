@@ -1,5 +1,8 @@
-Changelog for Mad::Mapper
+Revision history for perl distribution Mad-Mapper
 
-0.01
-       * Started project
+0.01 Not Released
+ - Add col(), pk() and table() sugar
+ - Add delete(), load() and save()
+ - Add "has many" relationship
+ - Started project
 

@@ -11,7 +11,7 @@ WriteMakefile(
     resources => {
       bugtracker => 'https://github.com/jhthorsen/mad-mapper/issues',
       homepage   => 'https://github.com/jhthorsen/mad-mapper',
-      repository => 'https://github.com/jhthorsen/mad-mapper',
+      repository => 'https://github.com/jhthorsen/mad-mapper.git',
     },
   },
   BUILD_REQUIRES => {'Test::More'  => '0.88'},
