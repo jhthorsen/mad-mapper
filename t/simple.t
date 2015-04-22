@@ -1,11 +1,7 @@
-use Mojo::Base -base;
-use Test::More;
+use t::Helper;
 use t::User;
 
-plan skip_all => "TEST_ONLINE=postgresql://@{[scalar getpwuid $<]}\@/test" unless $ENV{TEST_ONLINE};
-plan skip_all => 'Mojo::Pg is required' unless eval 'use Mojo::Pg; 1';
-
-my $pg = Mojo::Pg->new($ENV{TEST_ONLINE});
+my $pg = t::Helper->pg;
 my $user = t::User->new(db => $pg->db);
 my $err;
 

@@ -1,5 +1,8 @@
 Revision history for perl distribution Mad-Mapper
 
+0.02 2015-04-22T08:27:17+0200
+ - More robust live database tests
+
 0.01 2015-04-20T20:44:10+0200
  - Add col(), pk() and table() sugar
  - Add delete(), load() and save()
