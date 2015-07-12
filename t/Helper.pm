@@ -2,7 +2,7 @@ package t::Helper;
 use Mojo::Base -base;
 use Test::More;
 
-my $USERNAME = $^O eq 'Win32' ? 'username' : scalar getpwuid $<;
+my $USERNAME = $ENV{USER} || 'postgresql';
 
 sub pg {
   my $class = shift;

@@ -6,7 +6,7 @@ Mad::Mapper - Map Perl objects to MySQL or PostgreSQL row data
 
 =head1 VERSION
 
-0.02
+0.03
 
 =head1 DESCRIPTION
 
@@ -145,7 +145,7 @@ use Mojo::Loader 'load_class';
 use Scalar::Util 'weaken';
 use constant DEBUG => $ENV{MAD_DEBUG} || 0;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 my (%COLUMNS, %LOADED, %PK);
 

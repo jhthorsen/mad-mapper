@@ -16,5 +16,5 @@ WriteMakefile(
   },
   BUILD_REQUIRES => {'Test::More'  => '0.88'},
   PREREQ_PM      => {'Mojolicious' => '5.40'},
-  test           => {TESTS         => 't/*.t'},
+  test           => {TESTS         => (-e 'META.yml' ? 't/*.t' : 't/*.t xt/*.t')},
 );
