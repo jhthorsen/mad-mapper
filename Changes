@@ -1,5 +1,9 @@
 Revision history for perl distribution Mad-Mapper
 
+0.04 Not Released
+ - Fix "Calling a synchronous function on an asynchronous handle"
+   Cannot change $db into async mode if already in sync mode
+
 0.03 2015-07-12T11:36:05+0200
  - Fix "The getpwuid function is unimplemented"
 

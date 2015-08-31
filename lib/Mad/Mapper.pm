@@ -271,19 +271,9 @@ Will delete the object from database if L</in_storage>.
 =cut
 
 sub delete {
-  my ($self, $cb) = @_;
-
-  if ($cb) {
-    $self->in_storage ? $self->_delete($cb) : $self->$cb('');
-    return $self;
-  }
-
-  my $err;
-  $cb = sub { (my $self, $err) = @_; Mojo::IOLoop->stop; };
-  $self->_delete($cb) if $self->in_storage;
-  Mojo::IOLoop->start;
-  die $err if $err;
-  return $self;
+  my $self = shift;
+  $self->_delete(@_) if $self->in_storage;
+  $self;
 }
 
 =head2 fresh
@@ -307,20 +297,9 @@ Used to fetch data from storage and update the object attributes.
 =cut
 
 sub load {
-  my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
   my $self = shift;
-
-  if ($cb) {
-    $self->_find($cb);
-  }
-  else {
-    my $err;
-    $self->_find(sub { (my $self, $err) = @_; Mojo::IOLoop->stop; });
-    Mojo::IOLoop->start;
-    die $err if $err;
-  }
-
-  return $self;
+  $self->_find(@_);
+  $self;
 }
 
 =head2 save
@@ -333,19 +312,9 @@ Will update the object in database if L</in_storage> or insert it if not.
 =cut
 
 sub save {
-  my ($self, $cb) = @_;
-
-  if ($cb) {
-    $self->in_storage ? $self->_update($cb) : $self->_insert($cb);
-    return $self;
-  }
-
-  my $err;
-  $cb = sub { (my $self, $err) = @_; Mojo::IOLoop->stop; };
-  $self->in_storage ? $self->_update($cb) : $self->_insert($cb);
-  Mojo::IOLoop->start;
-  die $err if $err;
-  return $self;
+  my $self = shift;
+  $self->in_storage ? $self->_update(@_) : $self->_insert(@_);
+  $self;
 }
 
 =head2 import
@@ -390,17 +359,24 @@ sub _delete {
   my ($self, $cb) = @_;
   my @sst = $self->_delete_sst;
 
-  weaken $self;
   warn "[Mad::Mapper::delete] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
-  $self->db->query(
-    @sst,
-    sub {
-      my ($db, $err, $res) = @_;
-      warn "[Mad::Mapper::delete] err=$err\n" if DEBUG and $err;
-      $self->in_storage(0) unless $err;
-      $self->$cb($err);
-    }
-  );
+
+  if ($cb) {
+    weaken $self;
+    $self->db->query(
+      @sst,
+      sub {
+        my ($db, $err, $res) = @_;
+        warn "[Mad::Mapper::delete] err=$err\n" if DEBUG and $err;
+        $self->in_storage(0) unless $err;
+        $self->$cb($err);
+      }
+    );
+  }
+  else {
+    $self->db->query(@sst);
+    $self->in_storage(0);
+  }
 }
 
 sub _delete_sst {
@@ -481,18 +457,25 @@ sub _find {
   my @sst = $self->_find_sst;
 
   warn "[Mad::Mapper::find] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
-  weaken $self;
-  $self->db->query(
-    @sst,
-    sub {
-      my ($db, $err, $res) = @_;
-      warn "[Mad::Mapper::find] err=$err\n" if DEBUG and $err;
-      $res = $err ? {} : $res->hash || {};
-      $self->in_storage(1) if %$res and !$err;
-      $self->{$_} = $res->{$_} for keys %$res;
-      $self->$cb($err);
-    }
-  );
+  if ($cb) {
+    weaken $self;
+    $self->db->query(
+      @sst,
+      sub {
+        my ($db, $err, $res) = @_;
+        warn "[Mad::Mapper::find] err=$err\n" if DEBUG and $err;
+        $res = $err ? {} : $res->hash || {};
+        $self->in_storage(1) if %$res and !$err;
+        $self->{$_} = $res->{$_} for keys %$res;
+        $self->$cb($err);
+      }
+    );
+  }
+  else {
+    my $res = $self->db->query(@sst)->hash || {};
+    $self->in_storage(1) if keys %$res;
+    $self->{$_} = $res->{$_} for keys %$res;
+  }
 }
 
 sub _find_sst {
@@ -508,19 +491,29 @@ sub _insert {
   my @sst = $self->_insert_sst;
 
   warn "[Mad::Mapper::insert] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
-  weaken $self;
-  $self->db->query(
-    @sst,
-    sub {
-      my ($db, $err, $res) = @_;
-      warn "[Mad::Mapper::insert] err=$err\n" if DEBUG and $err;
-      $res = eval { $res->hash } || {};
-      $res->{$pk} ||= eval { $res->sth->mysql_insertid } if $pk;
-      $self->in_storage(1) if $res;
-      $self->$_($res->{$_}) for grep { $self->can($_) } keys %$res;
-      $self->$cb($err);
-    }
-  );
+
+  if ($cb) {
+    weaken $self;
+    $self->db->query(
+      @sst,
+      sub {
+        my ($db, $err, $res) = @_;
+        warn "[Mad::Mapper::insert] err=$err\n" if DEBUG and $err;
+        $res = eval { $res->hash } || {};
+        $res->{$pk} ||= eval { $res->sth->mysql_insertid } if $pk;
+        $self->in_storage(1) if keys %$res;
+        $self->$_($res->{$_}) for grep { $self->can($_) } keys %$res;
+        $self->$cb($err);
+      }
+    );
+  }
+  else {
+    my $res = $self->db->query(@sst);
+    $res = eval { $res->hash } || {};
+    $res->{$pk} ||= eval { $res->sth->mysql_insertid } if $pk;
+    $self->in_storage(1) if keys %$res;
+    $self->$_($res->{$_}) for grep { $self->can($_) } keys %$res;    # used with Mojo::Pg and RETURNING
+  }
 }
 
 sub _insert_sst {
@@ -539,15 +532,21 @@ sub _update {
   my @sst = $self->_update_sst;
 
   warn "[Mad::Mapper::update] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
-  weaken $self;
-  $self->db->query(
-    @sst,
-    sub {
-      my ($db, $err, $res) = @_;
-      warn "[Mad::Mapper::update] err=$err\n" if DEBUG and $err;
-      $self->$cb($err);
-    }
-  );
+
+  if ($cb) {
+    weaken $self;
+    $self->db->query(
+      @sst,
+      sub {
+        my ($db, $err, $res) = @_;
+        warn "[Mad::Mapper::update] err=$err\n" if DEBUG and $err;
+        $self->$cb($err);
+      }
+    );
+  }
+  else {
+    $self->db->query(@sst);
+  }
 }
 
 sub _update_sst {
