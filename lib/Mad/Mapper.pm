@@ -12,9 +12,14 @@ Mad::Mapper - Map Perl objects to MySQL or PostgreSQL row data
 
 L<Mad::Mapper> is base class for objects that should be stored to the a
 persistent SQL database. Currently the supported backends are L<Mojo::Pg>
-or L<Mojo::mysql>, both which are optional dependencies.
+L<Mojo::mysql> and L<Mojo::SQLite>. These backends need to be installed
+separately.
 
-THIS MODULE IS EXPERIMENTAL!
+  $ cpanm Mad::Mapper
+  $ cpanm Mojo::Pg # Mad::Mapper now support postgres!
+
+THIS MODULE IS EXPERIMENTAL. It is in use in production though, so
+big changes will not be made without extreme consideration.
 
 =head1 SYNOPSIS
 
