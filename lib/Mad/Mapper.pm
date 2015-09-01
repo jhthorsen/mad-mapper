@@ -51,7 +51,7 @@ the simple C<_insert()> method above can be done complex:
         my ($delay, $err, $res) = @_;
         return $self->$cb($err) if $err;
         $self->in_storage(1);
-        $self->id($res->sth->mysql_insertid);
+        $self->id($db->dbh->last_insert_id(undef, undef, $self->table, $self->pk));
         $self->$cb("");
       },
     );
@@ -488,19 +488,25 @@ sub _find_sst {
 sub _insert {
   my ($self, $cb) = @_;
   my $pk  = $self->_pk_or_first_column;
+  my $db  = $self->db;
   my @sst = $self->_insert_sst;
 
   warn "[Mad::Mapper::insert] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
 
   if ($cb) {
     weaken $self;
-    $self->db->query(
+    $db->query(
       @sst,
       sub {
         my ($db, $err, $res) = @_;
         warn "[Mad::Mapper::insert] err=$err\n" if DEBUG and $err;
         $res = eval { $res->hash } || {};
-        $res->{$pk} ||= eval { $res->sth->mysql_insertid } if $pk;
+
+        if ($pk) {
+          $res->{$pk} ||= $db->dbh->last_insert_id(undef, undef, $self->table, $self->pk);
+          $res->{$pk} ||= eval { $res->sth->mysql_insertid };    # can probably be removed
+        }
+
         $self->in_storage(1) if keys %$res;
         $self->$_($res->{$_}) for grep { $self->can($_) } keys %$res;
         $self->$cb($err);
@@ -508,9 +514,14 @@ sub _insert {
     );
   }
   else {
-    my $res = $self->db->query(@sst);
+    my $res = $db->query(@sst);
     $res = eval { $res->hash } || {};
-    $res->{$pk} ||= eval { $res->sth->mysql_insertid } if $pk;
+
+    if ($pk) {
+      $res->{$pk} ||= $db->dbh->last_insert_id(undef, undef, $self->table, $self->pk);
+      $res->{$pk} ||= eval { $res->sth->mysql_insertid }    # can probably be removed;
+    }
+
     $self->in_storage(1) if keys %$res;
     $self->$_($res->{$_}) for grep { $self->can($_) } keys %$res;    # used with Mojo::Pg and RETURNING
   }

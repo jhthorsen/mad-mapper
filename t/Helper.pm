@@ -11,6 +11,12 @@ sub pg {
   Mojo::Pg->new($ENV{TEST_ONLINE});
 }
 
+sub sqlite {
+  my $class = shift;
+  plan skip_all => 'Mojo::SQLite is required' unless eval 'use Mojo::SQLite; 1';
+  Mojo::SQLite->new;
+}
+
 sub import {
   my $class  = shift;
   my $caller = caller;
