@@ -2,7 +2,7 @@ package Mad::Mapper;
 
 =head1 NAME
 
-Mad::Mapper - Map Perl objects to MySQL or PostgreSQL row data
+Mad::Mapper - Map Perl objects to PostgreSQL, MySQL or SQLite data
 
 =head1 VERSION
 
@@ -113,9 +113,9 @@ the simple C<_insert()> method above can be done complex:
 
 =head1 RELATIONSHIPS
 
-Currently one a basic L</has_many> relationship is supported.
+Currently only a basic L</has_many> relationship is supported.
 
-TODO: C<belongs_to()> to and maybe C<has_one()>.
+TODO: C<belongs_to()> and maybe C<has_one()>.
 
 =head2 Has many
 
