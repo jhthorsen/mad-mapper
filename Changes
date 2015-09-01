@@ -1,6 +1,6 @@
 Revision history for perl distribution Mad-Mapper
 
-0.04 Not Released
+0.04 2015-09-01T07:17:52+0200
  - Fix "Calling a synchronous function on an asynchronous handle"
    Cannot change $db into async mode if already in sync mode
 

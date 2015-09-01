@@ -2,7 +2,7 @@ NAME
     Mad::Mapper - Map Perl objects to MySQL or PostgreSQL row data
 
 VERSION
-    0.03
+    0.04
 
 DESCRIPTION
     Mad::Mapper is base class for objects that should be stored to the a
