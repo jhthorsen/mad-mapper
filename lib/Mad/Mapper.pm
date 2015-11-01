@@ -578,6 +578,12 @@ sub _update_sst {
   $self->expand_sst("UPDATE %t SET %c= WHERE $pk=?"), (map { $self->$_ } $self->columns), $self->$pk;
 }
 
+sub TO_JSON {
+  my $self = shift;
+  my $pk   = $self->pk;
+  return {$pk ? ($pk => $self->$pk) : (), map { ($_ => $self->$_) } $self->columns};
+}
+
 =head1 COPYRIGHT AND LICENSE
 
 Copyright (C) 2014, Jan Henning Thorsen

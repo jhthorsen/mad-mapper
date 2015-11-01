@@ -26,5 +26,6 @@ isa_ok($user->_ua, 'Mojo::UserAgent');
 is $user->name, 'Doe, ', 'name';
 is $user->forename('Lucy'), $user, 'forename';
 is $user->email, 'lucy@doe.com', 'email';
+is_deeply($user->TO_JSON, {id => undef, forename => 'Lucy', surname => 'Doe', email => 'lucy@doe.com'}, 'TO_JSON');
 
 done_testing;
