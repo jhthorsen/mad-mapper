@@ -30,7 +30,8 @@ $col = $user->fresh->groups;
 is($col->size, 1, 'fresh from db');
 
 $group = $user->add_group(name => 'aaa')->save;
-$col = $user->fresh->groups_sorted('name desc');
+is $user->fresh->groups_sorted('name desc', sub { $col = pop; Mojo::IOLoop->stop }), $user, 'async groups_sorted';
+Mojo::IOLoop->start;
 is($col->size, 2, 'fresh sorted groups');
 is $user->{by}, 'name desc', 'by';
 is_deeply($col->map('name')->to_array, [qw( admin aaa )], 'name desc');

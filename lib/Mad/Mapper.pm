@@ -424,7 +424,7 @@ sub _define_has_many {
       if ($cb) {
         if ($fresh or !$self->{cache}{$method}) {
           $self->db->query(
-            \@sst,
+            @sst,
             sub {
               my ($db, $err, $res) = @_;
               warn "[Mad::Mapper::has_many::$method] err=$err\n" if DEBUG and $err;
