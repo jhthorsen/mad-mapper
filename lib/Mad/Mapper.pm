@@ -399,18 +399,24 @@ sub _define_col {
 
 sub _define_has_many {
   my ($class, $method, $related_class, $related_col) = @_;
-  my $pk = $class->_pk_or_first_column;
+  my $pk         = $class->_pk_or_first_column;
+  my $sst_method = $class->can("_has_many_${method}_sst");
 
   Mojo::Util::monkey_patch(
     $class => $method => sub {
-      my ($self, $cb) = @_;
-      my $err = $LOADED{$related_class}++ ? 0 : load_class $related_class;
+      my $cb    = ref $_[-1] eq 'CODE' ? pop : undef;
+      my $self  = shift;
+      my $err   = $LOADED{$related_class}++ ? 0 : load_class $related_class;
       my $fresh = delete $self->{fresh};
       my @sst;
 
       die ref $err ? "Exception: $err" : "Could not find class $related_class!" if $err;
 
-      @sst = $related_class->expand_sst("SELECT %pc FROM %t WHERE $related_col=?", $self->$pk);
+      @sst
+        = $sst_method
+        ? $self->$sst_method($related_class, @_)
+        : $related_class->expand_sst("SELECT %pc FROM %t WHERE $related_col=?", $self->$pk);
+
       warn sprintf "[Mad::Mapper::has_many::$method] %s\n",
         (!$fresh and $self->{cache}{$method}) ? 'CACHED' : Mojo::JSON::encode_json(\@sst)
         if DEBUG;

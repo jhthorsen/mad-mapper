@@ -29,6 +29,12 @@ is($col->size, 0, 'still zero');
 $col = $user->fresh->groups;
 is($col->size, 1, 'fresh from db');
 
+$group = $user->add_group(name => 'aaa')->save;
+$col = $user->fresh->groups_sorted('name desc');
+is($col->size, 2, 'fresh sorted groups');
+is $user->{by}, 'name desc', 'by';
+is_deeply($col->map('name')->to_array, [qw( admin aaa )], 'name desc');
+
 $pg->db->query('DROP TABLE mad_mapper_has_many_groups');
 $pg->db->query('DROP TABLE mad_mapper_has_many_users');
 

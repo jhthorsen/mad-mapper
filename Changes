@@ -1,5 +1,8 @@
 Revision history for perl distribution Mad-Mapper
 
+0.06 Not Released
+ - Allow specifying "has_many" SST
+
 0.05 2015-09-01T10:22:07+0200
  - Add support for Mojo::SQLite #1
 
