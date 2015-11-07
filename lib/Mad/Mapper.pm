@@ -245,16 +245,22 @@ Becomes a literal "%c".
 
 =back
 
+It is also possible to defined aliases for "%t", "%c", "%c=" and "%pc". Example:
+
+  %t.x = some_table as x
+  %c.x = x.col1
+
 =cut
 
 sub expand_sst {
   my ($self, $sst, @args) = @_;
+  my $p;
 
-  $sst =~ s|(?<!\\)\%c\=|{join ',', map {"$_=?"} $self->columns}|ge;
+  $sst =~ s|(?<!\\)\%c(?:\.(\w+))?\=|{$p = $1 ? "$1." : ""; join ',', map {"$p$_=?"} $self->columns}|ge;
   $sst =~ s|(?<!\\)\%c\?|{join ',', map {"?"} $self->columns}|ge;
-  $sst =~ s|(?<!\\)\%c|{join ',', $self->columns}|ge;
-  $sst =~ s|(?<!\\)\%pc|{join ',', $self->pk, $self->columns}|ge;
-  $sst =~ s|(?<!\\)\%t|{join ',', $self->table}|ge;
+  $sst =~ s|(?<!\\)\%c(?:\.(\w+))?|{$p = $1 ? "$1." : ""; join ',', map {"$p$_"} $self->columns}|ge;
+  $sst =~ s|(?<!\\)\%pc(?:\.(\w+))?|{$p = $1 ? "$1." : ""; join ',', map {"$p$_"} $self->pk, $self->columns}|ge;
+  $sst =~ s|(?<!\\)\%t(?:\.(\w+))?|{$self->table. ($1 ? " $1" : "")}|ge;
   $sst =~ s|\\%|%|g;
 
   return $sst, @args;

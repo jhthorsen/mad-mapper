@@ -22,8 +22,17 @@ sub _find_sst {
   my $self = shift;
   my $pk   = $self->_pk_or_first_column;
 
-  return $self->expand_sst("SELECT %pc FROM %t WHERE $pk=?"), $self->$pk if $self->$pk;
-  return $self->expand_sst("SELECT %pc FROM %t WHERE email=?"), $self->email;
+  if ($self->{$pk}) {
+    return $self->expand_sst("SELECT %pc FROM %t WHERE $pk=?"), $self->$pk;
+  }
+  elsif ($self->{group}) {
+    return $self->expand_sst(
+      "SELECT %pc.x FROM mad_mapper_has_many_groups g LEFT JOIN %t.x ON g.user_id = x.id WHERE g.name=? LIMIT 1"),
+      $self->{group};
+  }
+  else {
+    return $self->expand_sst("SELECT %pc.x FROM %t.x WHERE x.email=?"), $self->email;
+  }
 }
 
 1;
