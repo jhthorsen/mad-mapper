@@ -26,8 +26,6 @@ big changes will not be made without extreme consideration.
 The synopsis is split into three parts: The two first is for model developers,
 and the last is for the developer using the models.
 
-=head2 Simple
-
   package MyApp::Model::User;
   use Mad::Mapper -base;
 
@@ -35,111 +33,14 @@ and the last is for the developer using the models.
   col id => undef;
   col email => '';
 
-=head2 Complex
-
-Instead of using the automatic generated methods from simple SQL statements,
-it is possible to do the complete query yourself. Below is the example of how
-the simple C<_insert()> method above can be done complex:
-
-  package MyApp::Model::User;
-  use Mad::Mapper -base;
-
-  sub _insert {
-    my ($self, $cb) = @_;
-
-    Mojo::IOLoop->delay(
-      sub {
-        my ($delay) = @_;
-        $self->db->query("INSERT INTO users (email) VALUES (?)", $self->email, $delay->begin);
-      },
-      sub {
-        my ($delay, $err, $res) = @_;
-        return $self->$cb($err) if $err;
-        $self->in_storage(1);
-        $self->id($db->dbh->last_insert_id(undef, undef, $self->table, $self->pk));
-        $self->$cb("");
-      },
-    );
-  }
-
-=head2 High level usage
-
-  use Mojolicious::Lite;
-  use MyApp::Model::User;
-  use Mojo::Pg;
-
-  my $pg = Mojo::Pg->new;
-
-  helper model => sub {
-    my $c = shift;
-    my $model = "MyApp::Model::" .shift;
-    return $model->new(db => $pg->db, @_);
-  };
-
-  get "/profile" => sub {
-    my $c    = shift;
-    my $user = $c->model(User => id => $c->session("uid"));
-
-    $c->delay(
-      sub {
-        my ($delay) = @_;
-        $user->load($delay->begin);
-      },
-      sub {
-        my ($delay, $err) = @_;
-        return $self->render_exception($err) if $err;
-        return $self->render(user => $user);
-      },
-    );
-  };
-
-  post "/profile" => sub {
-    my $c    = shift;
-    my $user = $c->model(User => id => $c->session("uid"));
-
-    $c->delay(
-      sub {
-        my ($delay) = @_;
-        $user->email($self->param("email"));
-        $user->save($delay->begin);
-      },
-      sub {
-        my ($delay, $err) = @_;
-        return $self->render_exception($err) if $err;
-        return $self->render(user => $user);
-      },
-    );
-  };
+See also L<Mad::Mapper::Guides::Tutorial> for more details and
+L<Mad::Mapper::Guides::Custom> if you want more control.
 
 =head1 RELATIONSHIPS
 
-Currently only a basic L</has_many> relationship is supported.
+See L<Mad::Mapper::Guides::HasMany> for example "has many" relationship.
 
 TODO: C<belongs_to()> and maybe C<has_one()>.
-
-=head2 Has many
-
-Define a relationship:
-
-  package MyApp::Model::User;
-  use Mad::Mapper -base;
-  has_many groups => "MyApp::Model::Group", "id_user";
-
-Here "id_user" in the "groups" table should reference back to
-the L<primary key|/pk> in the current table.
-
-Return L<Mojo::Collection> of C<MyApp::Model::Group> objects:
-
-  $groups = $self->groups;
-
-Same, but async:
-
-  $self = $self->groups(sub { my ($self, $err, $groups) = @_; ... });
-
-Create a new C<MyApp::Model::Group> object:
-
-  $group = $self->add_group(\%constructor_args);
-  $group->save;
 
 =cut
 
@@ -154,7 +55,7 @@ our $VERSION = '0.05';
 
 my (%COLUMNS, %LOADED, %PK);
 
-=head1 SUGAR
+=head1 EXPORTED FUNCTIONS
 
 =head2 col
 
