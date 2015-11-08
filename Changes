@@ -1,6 +1,6 @@
 Revision history for perl distribution Mad-Mapper
 
-0.06 Not Released
+0.06 2015-11-08T17:31:06+0100
  - Allow specifying "has_many" SST
  - Add TO_JSON() method to Mad::Mapper
  - Add support for table aliases using "%x.alias"
