@@ -315,6 +315,7 @@ sub _define_has_many {
       my $self  = shift;
       my $err   = $LOADED{$related_class}++ ? 0 : load_class $related_class;
       my $fresh = delete $self->{fresh};
+      my $ck    = join ':', $method, grep { $_ // '' } @_;
       my @sst;
 
       die ref $err ? "Exception: $err" : "Could not find class $related_class!" if $err;
@@ -325,29 +326,29 @@ sub _define_has_many {
         : $related_class->expand_sst("SELECT %pc FROM %t WHERE $related_col=?", $self->$pk);
 
       warn sprintf "[Mad::Mapper::has_many::$method] %s\n",
-        (!$fresh and $self->{cache}{$method}) ? 'CACHED' : Mojo::JSON::encode_json(\@sst)
+        (!$fresh and $self->{cache}{$ck}) ? 'CACHED' : Mojo::JSON::encode_json(\@sst)
         if DEBUG;
 
       if ($cb) {
-        if ($fresh or !$self->{cache}{$method}) {
+        if ($fresh or !$self->{cache}{$ck}) {
           $self->db->query(
             @sst,
             sub {
               my ($db, $err, $res) = @_;
               warn "[Mad::Mapper::has_many::$method] err=$err\n" if DEBUG and $err;
-              $self->{cache}{$method} = $res->hashes->map(sub { $related_class->new($_)->in_storage(1) });
-              $self->$cb($err, $self->{cache}{$method});
+              $self->{cache}{$ck} = $res->hashes->map(sub { $related_class->new($_)->in_storage(1) });
+              $self->$cb($err, $self->{cache}{$ck});
             }
           );
         }
         else {
-          $self->$cb('', $self->{cache}{$method});
+          $self->$cb('', $self->{cache}{$ck});
         }
         return $self;
       }
       else {
-        delete $self->{cache}{$method} if $fresh;
-        return $self->{cache}{$method}
+        delete $self->{cache}{$ck} if $fresh;
+        return $self->{cache}{$ck}
           ||= $self->db->query(@sst)->hashes->map(sub { $related_class->new($_)->in_storage(1) });
       }
     }
