@@ -26,7 +26,7 @@ created from the last part of the package name.
   col id => undef;
   col email => '';
 
-See also L<Mad::Mapper::Guides::Complex> if you want more control.
+See also L<Mad::Mapper::Guides::Custom> if you want more control.
 
 =head2 Application code
 
