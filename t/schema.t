@@ -28,4 +28,14 @@ is $user->forename('Lucy'), $user, 'forename';
 is $user->email, 'lucy@doe.com', 'email';
 is_deeply($user->TO_JSON, {id => undef, forename => 'Lucy', surname => 'Doe', email => 'lucy@doe.com'}, 'TO_JSON');
 
+eval <<'HERE' or die $@;
+package Model::UserAgent;
+use Mad::Mapper -base;
+pk 'id';
+1;
+HERE
+
+ok(Model::UserAgent->can($_), "UserAgent can $_") for (qw( id table ));
+is(Model::UserAgent->new->table, 'user_agents','class decamelized to table');
+
 done_testing;
