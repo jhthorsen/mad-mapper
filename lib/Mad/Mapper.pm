@@ -1,5 +1,7 @@
 package Mad::Mapper;
 
+=encoding utf8
+
 =head1 NAME
 
 Mad::Mapper - Map Perl objects to PostgreSQL, MySQL or SQLite data
@@ -80,16 +82,18 @@ Note that L</pk> is not returned by L</columns>.
 
 =head2 table
 
-Used to define a table name. The default is to use the last part of the class
-name and add "s" at the end, unless it already has "s" at the end. Examples:
+Used to define a table name. The default is to decamelize the last part of the
+class name and add "s" at the end, unless it already has "s" at the end.
+Examples:
 
-  .----------------------------.
-  | Class name        | table  |
-  |-------------------|--------|
-  | App::Model::User  | users  |
-  | App::Model::Users | users  |
-  | App::Model::Group | groups |
-  '----------------------------'
+  .-------------------------------------.
+  | Class name            | table       |
+  |-----------------------|-------------|
+  | App::Model::User      | users       |
+  | App::Model::Users     | users       |
+  | App::Model::Group     | groups      |
+  | App::Model::UserAgent | user_agents |
+  '-------------------------------------'
 
 =head1 ATTRIBUTES
 
@@ -250,7 +254,7 @@ sub import {
 
   if ($flag) {
     my $caller = caller;
-    my $table = lc +(split /::/, $caller)[-1];
+    my $table = Mojo::Util::decamelize((split /::/, $caller)[-1]);
     $table =~ s!s?$!s!;    # user => users
     Mojo::Util::monkey_patch($caller, col      => sub { $caller->_define_col(@_) });
     Mojo::Util::monkey_patch($caller, columns  => sub { @{$COLUMNS{$caller} || []} });
@@ -502,6 +506,8 @@ the terms of the Artistic License version 2.0.
 =head1 AUTHOR
 
 Jan Henning Thorsen - C<jhthorsen@cpan.org>
+
+Красимир Беров - C<berov@cpan.org>
 
 =cut
 
