@@ -1,5 +1,9 @@
 Revision history for perl distribution Mad-Mapper
 
+0.07 2015-12-04T14:11:09+0100
+ - Using decamelize for table guessing #2
+   Contributor: Krasimir Berov
+
 0.06 2015-11-08T17:31:06+0100
  - Allow specifying "has_many" SST
  - Add TO_JSON() method to Mad::Mapper

@@ -2,7 +2,7 @@ NAME
     Mad::Mapper - Map Perl objects to PostgreSQL, MySQL or SQLite data
 
 VERSION
-    0.06
+    0.07
 
 DESCRIPTION
     Mad::Mapper is base class for objects that should be stored to the a
@@ -55,17 +55,18 @@ EXPORTED FUNCTIONS
     Note that "pk" is not returned by "columns".
 
   table
-    Used to define a table name. The default is to use the last part of the
-    class name and add "s" at the end, unless it already has "s" at the end.
-    Examples:
+    Used to define a table name. The default is to decamelize the last part
+    of the class name and add "s" at the end, unless it already has "s" at
+    the end. Examples:
 
-      .----------------------------.
-      | Class name        | table  |
-      |-------------------|--------|
-      | App::Model::User  | users  |
-      | App::Model::Users | users  |
-      | App::Model::Group | groups |
-      '----------------------------'
+      .-------------------------------------.
+      | Class name            | table       |
+      |-----------------------|-------------|
+      | App::Model::User      | users       |
+      | App::Model::Users     | users       |
+      | App::Model::Group     | groups      |
+      | App::Model::UserAgent | user_agents |
+      '-------------------------------------'
 
 ATTRIBUTES
   db
@@ -157,4 +158,6 @@ COPYRIGHT AND LICENSE
 
 AUTHOR
     Jan Henning Thorsen - "jhthorsen@cpan.org"
+
+    Красимир Беров - "berov@cpan.org"
 
