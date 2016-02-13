@@ -12,21 +12,18 @@ Mad::Mapper - Map Perl objects to PostgreSQL, MySQL or SQLite data
 
 =head1 DESCRIPTION
 
-L<Mad::Mapper> is base class for objects that should be stored to the a
+L<Mad::Mapper> is a base class for objects that should be stored in a
 persistent SQL database. Currently the supported backends are L<Mojo::Pg>
 L<Mojo::mysql> and L<Mojo::SQLite>. These backends need to be installed
 separately.
 
   $ cpanm Mad::Mapper
-  $ cpanm Mojo::Pg # Mad::Mapper now support postgres!
+  $ cpanm Mojo::Pg # Mad::Mapper now supports postgres!
 
 THIS MODULE IS EXPERIMENTAL. It is in use in production though, so
 big changes will not be made without extreme consideration.
 
 =head1 SYNOPSIS
-
-The synopsis is split into three parts: The two first is for model developers,
-and the last is for the developer using the models.
 
   package MyApp::Model::User;
   use Mad::Mapper -base;
@@ -126,7 +123,7 @@ Used to expand a given C<$sst> with variables defined by helpers.
 
 =item * %t
 
-Will be replaced by </table>. Example: "SELECT * FROM %t" becomes "SELECT * FROM users".
+Will be replaced by L</table>. Example: "SELECT * FROM %t" becomes "SELECT * FROM users".
 
 =item * %c
 
@@ -150,7 +147,7 @@ Becomes a literal "%c".
 
 =back
 
-It is also possible to defined aliases for "%t", "%c", "%c=" and "%pc". Example:
+It is also possible to define aliases for "%t", "%c", "%c=" and "%pc". Example:
 
   %t.x = some_table as x
   %c.x = x.col1
@@ -498,7 +495,7 @@ sub TO_JSON {
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2014, Jan Henning Thorsen
+Copyright (C) 2014-2016, Jan Henning Thorsen
 
 This program is free software, you can redistribute it and/or modify it under
 the terms of the Artistic License version 2.0.

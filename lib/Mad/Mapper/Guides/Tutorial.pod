@@ -12,7 +12,7 @@ your application.
 =head2 Create a model
 
 The snippet below is enough to define a model. A model should contain all
-the columns that you want to map to your table. Is many cases you don't
+the columns that you want to map to your table. In many cases you don't
 need to define a L<table|Mad::Mapper/table>, since it is automatically
 created from the last part of the package name.
 
@@ -22,7 +22,7 @@ created from the last part of the package name.
   # import all the helpers from Mad::Mapper
   use Mad::Mapper -base;
 
-  # columns becomes accessors, just like you would define with "has"
+  # columns become accessors, just like you would define with "has"
   col id => undef;
   col email => '';
 
@@ -30,7 +30,7 @@ See also L<Mad::Mapper::Guides::Custom> if you want more control.
 
 =head2 Application code
 
-The code below show how you can use the models in a L<Mojolicious::Lite>
+The code below shows how you can use the models in a L<Mojolicious::Lite>
 application. The example connects to postrgres using L<Mojo::Pg>, but you
 can also use L<Mojo::SQLite> or L<Mojo::mysql>.
 
@@ -62,8 +62,8 @@ can also use L<Mojo::SQLite> or L<Mojo::mysql>.
       },
       sub {
         my ($delay, $err) = @_;
-        return $self->render_exception($err) if $err;
-        return $self->render(user => $user);
+        return $c->render_exception($err) if $err;
+        return $c->render(user => $user);
       },
     );
   };
@@ -76,20 +76,20 @@ can also use L<Mojo::SQLite> or L<Mojo::mysql>.
     $c->delay(
       sub {
         my ($delay) = @_;
-        $user->email($self->param("email"));
+        $user->email($c->param("email"));
         $user->save($delay->begin);
       },
       sub {
         my ($delay, $err) = @_;
-        return $self->render_exception($err) if $err;
-        return $self->render(user => $user);
+        return $c->render_exception($err) if $err;
+        return $c->render(user => $user);
       },
     );
   };
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2014, Jan Henning Thorsen
+Copyright (C) 2014-2016, Jan Henning Thorsen
 
 This program is free software, you can redistribute it and/or modify it under
 the terms of the Artistic License version 2.0.
