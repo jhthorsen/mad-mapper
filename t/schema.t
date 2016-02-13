@@ -28,14 +28,48 @@ is $user->forename('Lucy'), $user, 'forename';
 is $user->email, 'lucy@doe.com', 'email';
 is_deeply($user->TO_JSON, {id => undef, forename => 'Lucy', surname => 'Doe', email => 'lucy@doe.com'}, 'TO_JSON');
 
+# Test plural form of singular table
 eval <<'HERE' or die $@;
-package Model::UserAgent;
+package Model::MyInventory;
 use Mad::Mapper -base;
 pk 'id';
 1;
 HERE
 
-ok(Model::UserAgent->can($_), "UserAgent can $_") for (qw( id table ));
-is(Model::UserAgent->new->table, 'user_agents','class decamelized to table');
+ok(Model::MyInventory->can($_), "MyInventory can $_") for (qw( id table ));
+is(Model::MyInventory->new->table, 'my_inventories','class decamelized to table');
+
+# Test plural form of singular table when already plural
+eval <<'HERE' or die $@;
+package Model::MyInventories;
+use Mad::Mapper -base;
+pk 'id';
+1;
+HERE
+
+ok(Model::MyInventories->can($_), "MyInventories can $_") for (qw( id table ));
+is(Model::MyInventories->new->table, 'my_inventories','class decamelized to table');
+
+# Test plural form of singular table
+eval <<'HERE' or die $@;
+package Model::Menu;
+use Mad::Mapper -base;
+pk 'id';
+1;
+HERE
+
+ok(Model::Menu->can($_), "Menu can $_") for (qw( id table ));
+is(Model::Menu->new->table, 'menus','class decamelized to table');
+
+# Lingua:EN::Inflect::Number fails in some very spectacular ways: menuses???
+eval <<'HERE' or die $@;
+package Model::Menus;
+use Mad::Mapper -base;
+pk 'id';
+1;
+HERE
+
+ok(Model::Menus->can($_), "Menus can $_") for (qw( id table ));
+is(Model::Menus->new->table, 'menuses','class decamelized to table');
 
 done_testing;
