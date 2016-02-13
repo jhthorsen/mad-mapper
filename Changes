@@ -1,6 +1,6 @@
 Revision history for perl distribution Mad-Mapper
 
-0.09 Not Released
+0.09 2016-02-13T11:54:38-0600
  - Deprecated *_sst() in favor of *_sql()
    Contributor: Stefan Adams
 
