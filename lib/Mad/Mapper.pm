@@ -25,9 +25,6 @@ big changes will not be made without extreme consideration.
 
 =head1 SYNOPSIS
 
-The synopsis is split into three parts: The first two are for model developers,
-and the last is for the developer using the models.
-
   package MyApp::Model::User;
   use Mad::Mapper -base;
 
