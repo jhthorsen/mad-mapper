@@ -113,11 +113,11 @@ has in_storage => 0;
 
 =head1 METHODS
 
-=head2 expand_sst
+=head2 expand_sql
 
-  ($sst, @args) = $self->expand_sst($sst, @args);
+  ($sql, @args) = $self->expand_sql($sql, @args);
 
-Used to expand a given C<$sst> with variables defined by helpers.
+Used to expand a given C<$sql> statement with variables defined by helpers.
 
 =over 4
 
@@ -154,18 +154,29 @@ It is also possible to define aliases for "%t", "%c", "%c=" and "%pc". Example:
 
 =cut
 
-sub expand_sst {
-  my ($self, $sst, @args) = @_;
+sub expand_sql {
+  my ($self, $sql, @args) = @_;
   my $p;
 
-  $sst =~ s|(?<!\\)\%c(?:\.(\w+))?\=|{$p = $1 ? "$1." : ""; join ',', map {"$p$_=?"} $self->columns}|ge;
-  $sst =~ s|(?<!\\)\%c\?|{join ',', map {"?"} $self->columns}|ge;
-  $sst =~ s|(?<!\\)\%c(?:\.(\w+))?|{$p = $1 ? "$1." : ""; join ',', map {"$p$_"} $self->columns}|ge;
-  $sst =~ s|(?<!\\)\%pc(?:\.(\w+))?|{$p = $1 ? "$1." : ""; join ',', map {"$p$_"} $self->pk, $self->columns}|ge;
-  $sst =~ s|(?<!\\)\%t(?:\.(\w+))?|{$self->table. ($1 ? " $1" : "")}|ge;
-  $sst =~ s|\\%|%|g;
+  $sql =~ s|(?<!\\)\%c(?:\.(\w+))?\=|{$p = $1 ? "$1." : ""; join ',', map {"$p$_=?"} $self->columns}|ge;
+  $sql =~ s|(?<!\\)\%c\?|{join ',', map {"?"} $self->columns}|ge;
+  $sql =~ s|(?<!\\)\%c(?:\.(\w+))?|{$p = $1 ? "$1." : ""; join ',', map {"$p$_"} $self->columns}|ge;
+  $sql =~ s|(?<!\\)\%pc(?:\.(\w+))?|{$p = $1 ? "$1." : ""; join ',', map {"$p$_"} $self->pk, $self->columns}|ge;
+  $sql =~ s|(?<!\\)\%t(?:\.(\w+))?|{$self->table. ($1 ? " $1" : "")}|ge;
+  $sql =~ s|\\%|%|g;
 
-  return $sst, @args;
+  return $sql, @args;
+}
+
+=head2 expand_sst
+
+DEPRECATED in favor of L</expand_sql>.
+
+=cut
+
+sub expand_sst {
+  Mojo::Util::deprecated("expand_sst() is deprecated in favor of expand_sql()");
+  shift->expand_sql(@_);
 }
 
 =head2 columns
@@ -270,14 +281,14 @@ sub import {
 
 sub _delete {
   my ($self, $cb) = @_;
-  my @sst = $self->_delete_sst;
+  my @sql = $self->_delete_sql;
 
-  warn "[Mad::Mapper::delete] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
+  warn "[Mad::Mapper::delete] ", Mojo::JSON::encode_json(\@sql), "\n" if DEBUG;
 
   if ($cb) {
     weaken $self;
     $self->db->query(
-      @sst,
+      @sql,
       sub {
         my ($db, $err, $res) = @_;
         warn "[Mad::Mapper::delete] err=$err\n" if DEBUG and $err;
@@ -287,16 +298,21 @@ sub _delete {
     );
   }
   else {
-    $self->db->query(@sst);
+    $self->db->query(@sql);
     $self->in_storage(0);
   }
 }
 
-sub _delete_sst {
+sub _delete_sql {
   my $self = shift;
   my $pk   = $self->_pk_or_first_column;
 
-  $self->expand_sst("DELETE FROM %t WHERE $pk=?"), $self->$pk;
+  $self->expand_sql("DELETE FROM %t WHERE $pk=?"), $self->$pk;
+}
+
+sub _delete_sst {
+  Mojo::Util::deprecated("_delete_sst() is deprecated in favor of _delete_sql()");
+  shift->_delete_sql(@_);
 }
 
 sub _define_col {
@@ -308,7 +324,7 @@ sub _define_col {
 sub _define_has_many {
   my ($class, $method, $related_class, $related_col) = @_;
   my $pk         = $class->_pk_or_first_column;
-  my $sst_method = $class->can("_has_many_${method}_sst");
+  my $sql_method = $class->can("_has_many_${method}_sql");
 
   Mojo::Util::monkey_patch(
     $class => $method => sub {
@@ -317,23 +333,23 @@ sub _define_has_many {
       my $err   = $LOADED{$related_class}++ ? 0 : load_class $related_class;
       my $fresh = delete $self->{fresh};
       my $ck    = join ':', $method, grep { $_ // '' } @_;
-      my @sst;
+      my @sql;
 
       die ref $err ? "Exception: $err" : "Could not find class $related_class!" if $err;
 
-      @sst
-        = $sst_method
-        ? $self->$sst_method($related_class, @_)
-        : $related_class->expand_sst("SELECT %pc FROM %t WHERE $related_col=?", $self->$pk);
+      @sql
+        = $sql_method
+        ? $self->$sql_method($related_class, @_)
+        : $related_class->expand_sql("SELECT %pc FROM %t WHERE $related_col=?", $self->$pk);
 
       warn sprintf "[Mad::Mapper::has_many::$method] %s\n",
-        (!$fresh and $self->{cache}{$ck}) ? 'CACHED' : Mojo::JSON::encode_json(\@sst)
+        (!$fresh and $self->{cache}{$ck}) ? 'CACHED' : Mojo::JSON::encode_json(\@sql)
         if DEBUG;
 
       if ($cb) {
         if ($fresh or !$self->{cache}{$ck}) {
           $self->db->query(
-            @sst,
+            @sql,
             sub {
               my ($db, $err, $res) = @_;
               warn "[Mad::Mapper::has_many::$method] err=$err\n" if DEBUG and $err;
@@ -350,7 +366,7 @@ sub _define_has_many {
       else {
         delete $self->{cache}{$ck} if $fresh;
         return $self->{cache}{$ck}
-          ||= $self->db->query(@sst)->hashes->map(sub { $related_class->new($_)->in_storage(1) });
+          ||= $self->db->query(@sql)->hashes->map(sub { $related_class->new($_)->in_storage(1) });
       }
     }
   );
@@ -374,13 +390,13 @@ sub _define_pk {
 
 sub _find {
   my ($self, $cb) = @_;
-  my @sst = $self->_find_sst;
+  my @sql = $self->_find_sql;
 
-  warn "[Mad::Mapper::find] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
+  warn "[Mad::Mapper::find] ", Mojo::JSON::encode_json(\@sql), "\n" if DEBUG;
   if ($cb) {
     weaken $self;
     $self->db->query(
-      @sst,
+      @sql,
       sub {
         my ($db, $err, $res) = @_;
         warn "[Mad::Mapper::find] err=$err\n" if DEBUG and $err;
@@ -392,31 +408,36 @@ sub _find {
     );
   }
   else {
-    my $res = $self->db->query(@sst)->hash || {};
+    my $res = $self->db->query(@sql)->hash || {};
     $self->in_storage(1) if keys %$res;
     $self->{$_} = $res->{$_} for keys %$res;
   }
 }
 
-sub _find_sst {
+sub _find_sql {
   my $self = shift;
   my $pk   = $self->_pk_or_first_column;
 
-  $self->expand_sst("SELECT %pc FROM %t WHERE $pk=?"), $self->$pk;
+  $self->expand_sql("SELECT %pc FROM %t WHERE $pk=?"), $self->$pk;
+}
+
+sub _find_sst {
+  Mojo::Util::deprecated("_find_sst() is deprecated in favor of _find_sql()");
+  shift->_find_sql(@_);
 }
 
 sub _insert {
   my ($self, $cb) = @_;
   my $pk  = $self->_pk_or_first_column;
   my $db  = $self->db;
-  my @sst = $self->_insert_sst;
+  my @sql = $self->_insert_sql;
 
-  warn "[Mad::Mapper::insert] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
+  warn "[Mad::Mapper::insert] ", Mojo::JSON::encode_json(\@sql), "\n" if DEBUG;
 
   if ($cb) {
     weaken $self;
     $db->query(
-      @sst,
+      @sql,
       sub {
         my ($db, $err, $res) = @_;
         warn "[Mad::Mapper::insert] err=$err\n" if DEBUG and $err;
@@ -434,7 +455,7 @@ sub _insert {
     );
   }
   else {
-    my $res = $db->query(@sst);
+    my $res = $db->query(@sql);
     $res = eval { $res->hash } || {};
 
     if ($pk) {
@@ -447,27 +468,32 @@ sub _insert {
   }
 }
 
-sub _insert_sst {
+sub _insert_sql {
   my $self = shift;
   my $pk   = $self->pk;
   my $sql  = "INSERT INTO %t (%c) VALUES (%c?)";
 
   $sql .= " RETURNING $pk" if $pk and UNIVERSAL::isa($self->db, 'Mojo::Pg::Database');
-  $self->expand_sst($sql), map { $self->$_ } $self->columns;
+  $self->expand_sql($sql), map { $self->$_ } $self->columns;
+}
+
+sub _insert_sst {
+  Mojo::Util::deprecated("_insert_sst() is deprecated in favor of _insert_sql()");
+  shift->_insert_sql(@_);
 }
 
 sub _pk_or_first_column { $_[0]->pk || ($_[0]->columns)[0] }
 
 sub _update {
   my ($self, $cb) = @_;
-  my @sst = $self->_update_sst;
+  my @sql = $self->_update_sql;
 
-  warn "[Mad::Mapper::update] ", Mojo::JSON::encode_json(\@sst), "\n" if DEBUG;
+  warn "[Mad::Mapper::update] ", Mojo::JSON::encode_json(\@sql), "\n" if DEBUG;
 
   if ($cb) {
     weaken $self;
     $self->db->query(
-      @sst,
+      @sql,
       sub {
         my ($db, $err, $res) = @_;
         warn "[Mad::Mapper::update] err=$err\n" if DEBUG and $err;
@@ -476,15 +502,20 @@ sub _update {
     );
   }
   else {
-    $self->db->query(@sst);
+    $self->db->query(@sql);
   }
 }
 
-sub _update_sst {
+sub _update_sql {
   my $self = shift;
   my $pk   = $self->_pk_or_first_column;
 
-  $self->expand_sst("UPDATE %t SET %c= WHERE $pk=?"), (map { $self->$_ } $self->columns), $self->$pk;
+  $self->expand_sql("UPDATE %t SET %c= WHERE $pk=?"), (map { $self->$_ } $self->columns), $self->$pk;
+}
+
+sub _update_sst {
+  Mojo::Util::deprecated("_update_sst() is deprecated in favor of _update_sql()");
+  shift->_update_sql(@_);
 }
 
 sub TO_JSON {
@@ -505,6 +536,8 @@ the terms of the Artistic License version 2.0.
 Jan Henning Thorsen - C<jhthorsen@cpan.org>
 
 Красимир Беров - C<berov@cpan.org>
+
+Stefan Adams - C<sadams@cpan.org>
 
 =cut
 

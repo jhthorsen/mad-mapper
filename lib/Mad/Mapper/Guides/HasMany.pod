@@ -67,10 +67,10 @@ You can define your own query:
 
   has_many groups_sorted => "MyApp::Model::Group";
 
-  sub _has_many_groups_sorted_sst {
+  sub _has_many_groups_sorted_sql {
     my ($self, $related_class, @extra) = @_;
 
-    return $related_class->expand_sst(
+    return $related_class->expand_sql(
       "SELECT %pc FROM %t WHERE user_id=? order by name", $self->id
     );
   }
