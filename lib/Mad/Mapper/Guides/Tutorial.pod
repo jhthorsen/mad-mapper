@@ -62,8 +62,8 @@ can also use L<Mojo::SQLite> or L<Mojo::mysql>.
       },
       sub {
         my ($delay, $err) = @_;
-        return $self->render_exception($err) if $err;
-        return $self->render(user => $user);
+        return $c->render_exception($err) if $err;
+        return $c->render(user => $user);
       },
     );
   };
@@ -76,13 +76,13 @@ can also use L<Mojo::SQLite> or L<Mojo::mysql>.
     $c->delay(
       sub {
         my ($delay) = @_;
-        $user->email($self->param("email"));
+        $user->email($c->param("email"));
         $user->save($delay->begin);
       },
       sub {
         my ($delay, $err) = @_;
-        return $self->render_exception($err) if $err;
-        return $self->render(user => $user);
+        return $c->render_exception($err) if $err;
+        return $c->render(user => $user);
       },
     );
   };
