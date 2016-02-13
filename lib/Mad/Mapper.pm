@@ -49,6 +49,7 @@ use Mojo::JSON ();
 use Mojo::Loader 'load_class';
 use Scalar::Util 'weaken';
 use constant DEBUG => $ENV{MAD_DEBUG} || 0;
+use Lingua::EN::Inflect::Number 'to_PL';
 
 our $VERSION = '0.07';
 
@@ -80,17 +81,21 @@ Note that L</pk> is not returned by L</columns>.
 =head2 table
 
 Used to define a table name. The default is to decamelize the last part of the
-class name and add "s" at the end, unless it already has "s" at the end.
-Examples:
+class name and make it plural using L<Lingua::EN::Inflect::Number>, note that
+due to the severe complexity of the English language, this can fail in
+spectacular ways. Examples:
 
-  .-------------------------------------.
-  | Class name            | table       |
-  |-----------------------|-------------|
-  | App::Model::User      | users       |
-  | App::Model::Users     | users       |
-  | App::Model::Group     | groups      |
-  | App::Model::UserAgent | user_agents |
-  '-------------------------------------'
+  .--------------------------------------------.
+  | Class name                | table          |
+  |---------------------------|----------------|
+  | App::Model::User          | users          |
+  | App::Model::Users         | users          |
+  | App::Model::Group         | groups         |
+  | App::Model::MyInventory   | my_inventories |
+  | App::Model::MyInventories | my_inventories |
+  | App::Model::Menu          | menus          |
+  | App::Model::Menus         | menuses (DOH!) |
+  '--------------------------------------------'
 
 =head1 ATTRIBUTES
 
@@ -251,8 +256,7 @@ sub import {
 
   if ($flag) {
     my $caller = caller;
-    my $table = Mojo::Util::decamelize((split /::/, $caller)[-1]);
-    $table =~ s!s?$!s!;    # user => users
+    my $table = to_PL(Mojo::Util::decamelize((split /::/, $caller)[-1]));
     Mojo::Util::monkey_patch($caller, col      => sub { $caller->_define_col(@_) });
     Mojo::Util::monkey_patch($caller, columns  => sub { @{$COLUMNS{$caller} || []} });
     Mojo::Util::monkey_patch($caller, has      => sub { Mojo::Base::attr($caller, @_) });
