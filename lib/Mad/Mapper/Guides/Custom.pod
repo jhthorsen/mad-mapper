@@ -10,20 +10,20 @@ This guide will show how to run custom queries for full control.
 
 =head2 Half control
 
-It is possible to override the private methods C<_find_sst()>,
-C<_insert_sst()>, C<_update_sst()> and C<_delete_sst()> for more
+It is possible to override the private methods C<_find_sql()>,
+C<_insert_sql()>, C<_update_sql()> and C<_delete_sql()> for more
 control. The benefit of overriding these methods is if you want
 to use optional columns for doing queries. The example below can
 find a row based on both the "id" and "email" column.
 
-  sub _find_sst {
+  sub _find_sql {
     my $self = shift;
 
     if ($self->email) {
-      return $self->expand_sst("SELECT %pc FROM %t WHERE email=?"), $self->email;
+      return $self->expand_sql("SELECT %pc FROM %t WHERE email=?"), $self->email;
     }
     else {
-      return $self->expand_sst("SELECT %pc FROM %t WHERE id=?"), $self->id;
+      return $self->expand_sql("SELECT %pc FROM %t WHERE id=?"), $self->id;
     }
   }
 
